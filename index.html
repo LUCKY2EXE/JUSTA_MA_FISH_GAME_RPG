@@ -1,0 +1,2496 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#071019">
+<title>Pixel Angel-RPG</title>
+<style>
+  /* Bewusst KEINE externen Schriftarten/Ressourcen -> funktioniert offline & mobil ohne Netzwerk */
+  :root {
+    --water: #8fd8ff;
+    --panel: #0f1b2b;
+    --panel2: #16263c;
+    --border: #2b4d6f;
+    --text: #eaf6ff;
+    --accent: #ffd23f;
+    --common: #b9c2c8;
+    --uncommon: #57d16f;
+    --rare: #4da6ff;
+    --epic: #b366ff;
+    --legendary: #ffcc33;
+    --mystic: #ff5fb0;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: #071019;
+    color: var(--text);
+    font-family: 'Courier New', 'Lucida Console', monospace;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    touch-action: manipulation;
+    overscroll-behavior-y: contain;
+  }
+  #app {
+    width: 100%;
+    max-width: 560px;
+    padding: 12px 10px calc(30px + env(safe-area-inset-bottom));
+    padding-left: calc(10px + env(safe-area-inset-left));
+    padding-right: calc(10px + env(safe-area-inset-right));
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  h1 {
+    font-size: 15px;
+    text-align: center;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin: 4px 0;
+    text-shadow: 2px 2px 0 #000;
+  }
+  #hud, #hud2 {
+    display: flex;
+    justify-content: space-between;
+    background: var(--panel);
+    border: 3px solid var(--border);
+    padding: 8px 10px;
+    font-size: 10px;
+    line-height: 1.8;
+  }
+  #hud2 { font-size: 9px; flex-wrap: wrap; gap: 6px; }
+  #hud .col { display: flex; flex-direction: column; gap: 2px; }
+  #hud b, #hud2 b { color: var(--accent); }
+  #xpBarWrap {
+    width: 100%;
+    height: 8px;
+    background: #061018;
+    border: 2px solid var(--border);
+    margin-top: 3px;
+  }
+  #xpBar {
+    height: 100%;
+    background: linear-gradient(90deg, #ffd23f, #ff9f43);
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  #stage {
+    position: relative;
+    border: 4px solid var(--border);
+    box-shadow: 0 0 0 3px #000, 0 0 16px #000a;
+    image-rendering: pixelated;
+    background: var(--water);
+    align-self: center;
+    width: 100%;
+  }
+  canvas {
+    image-rendering: pixelated;
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  #feedWrap {
+    background: var(--panel);
+    border: 3px solid var(--border);
+    padding: 10px;
+    height: 190px;
+    overflow-y: auto;
+    font-size: 10px;
+    line-height: 1.7;
+    -webkit-overflow-scrolling: touch;
+  }
+  #feedWrap::-webkit-scrollbar { width: 8px; }
+  #feedWrap::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .msg { margin-bottom: 10px; animation: fadeIn 0.25s ease; }
+  .msg .tag { color: #7fb8e0; font-size: 9px; margin-bottom: 3px; }
+  .msg .body { white-space: pre-wrap; }
+  .msg .sub { color: #8aa; font-size: 9px; margin-top: 2px; }
+  .rare-common { color: var(--common); }
+  .rare-uncommon { color: var(--uncommon); }
+  .rare-rare { color: var(--rare); }
+  .rare-epic { color: var(--epic); }
+  .rare-legendary { color: var(--legendary); }
+  .rare-mystic { color: var(--mystic); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }
+
+  #buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  button {
+    font-family: inherit;
+    font-size: 10px;
+    padding: 12px 12px;
+    min-height: 42px;
+    background: var(--panel2);
+    color: var(--text);
+    border: 3px solid var(--border);
+    cursor: pointer;
+    box-shadow: 3px 3px 0 #000;
+    touch-action: manipulation;
+  }
+  button:hover:not(:disabled) { background: #1e3554; }
+  button:active:not(:disabled) { transform: translate(2px,2px); box-shadow: 1px 1px 0 #000; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary { background: #1a5c3a; border-color: #2fae6e; }
+  button.primary:hover:not(:disabled) { background: #1f7548; }
+  button.danger { background: #5c1a2a; border-color: #ae2f4f; }
+  button.danger:hover:not(:disabled) { background: #75213a; }
+
+  #modalOverlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    z-index: 10;
+  }
+  #modalOverlay.show { display: flex; }
+  #modal {
+    background: var(--panel);
+    border: 4px solid var(--border);
+    padding: 14px;
+    max-width: 440px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    font-size: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  #modal h2 { color: var(--accent); font-size: 12px; margin-top: 0; }
+  .inv-row {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px dashed var(--border);
+    padding: 6px 0;
+    gap: 6px;
+  }
+  .inv-empty { color: #789; text-align: center; padding: 20px 0; }
+  #modalClose { margin-top: 12px; width: 100%; }
+
+  #shopTabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+  #shopTabs button { font-size: 9px; padding: 8px; min-height: 34px; flex: 1; }
+  #shopTabs button.active { background: #1a5c3a; border-color: #2fae6e; }
+
+  .shop-row { border-bottom: 1px dashed var(--border); padding: 8px 0; }
+  .shop-row .shop-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .shop-row .shop-desc { color: #9fc7e0; font-size: 9px; margin: 4px 0 6px; line-height: 1.5; }
+  .shop-row button { font-size: 9px; padding: 7px 8px; min-height: 34px; box-shadow: 2px 2px 0 #000; }
+  .shop-owned { color: #57d16f; font-size: 9px; }
+  .shop-locked { color: #c65a5a; font-size: 9px; }
+  #shopMoney { color: var(--accent); text-align: right; margin-bottom: 8px; font-size: 10px; }
+
+  @media (max-width: 380px) {
+    h1 { font-size: 12px; }
+    #hud, #hud2 { font-size: 8px; }
+    button { font-size: 9px; padding: 10px 8px; }
+  }
+
+  #resetLink {
+    text-align: center;
+    font-size: 8px;
+    color: #4a6580;
+    margin-top: 4px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  #resetLink:hover { color: #7fa8c9; }
+
+  /* Fast unsichtbarer geheimer Trigger für die Admin-Konsole */
+  #secretDot {
+    width: 14px;
+    height: 14px;
+    margin: 10px auto 0;
+    opacity: 0.06;
+    border-radius: 50%;
+    background: #333;
+    cursor: default;
+  }
+
+  #adminOverlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.9);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    z-index: 20;
+  }
+  #adminOverlay.show { display: flex; }
+  #adminConsole {
+    background: #001400;
+    border: 3px solid #2fae6e;
+    box-shadow: 0 0 20px #2fae6e88;
+    width: 100%;
+    max-width: 460px;
+    padding: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #4dff88;
+  }
+  #adminLog {
+    height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    line-height: 1.6;
+    margin-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  #adminInputRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-top: 1px dashed #2fae6e;
+    padding-top: 8px;
+  }
+  #adminPrompt { color: #4dff88; }
+  #adminInput {
+    flex: 1;
+    background: #001a00;
+    border: 2px solid #2fae6e;
+    color: #4dff88;
+    font-family: inherit;
+    font-size: 11px;
+    padding: 8px;
+    min-height: 38px;
+  }
+  #adminInput:focus { outline: none; box-shadow: 0 0 6px #2fae6e; }
+  #adminRun {
+    background: #0a3d1f;
+    border: 2px solid #2fae6e;
+    color: #4dff88;
+    min-height: 38px;
+    padding: 8px 12px;
+    font-family: inherit;
+    box-shadow: none;
+  }
+  #adminClose {
+    width: 100%;
+    margin-top: 10px;
+    background: #2a0a0a;
+    border-color: #ae2f2f;
+    color: #ff8080;
+    box-shadow: none;
+  }
+
+  /* ===================== NEU FÜR DIE RPG-VERSION ===================== */
+
+  #stage {
+    position: relative;
+    border: 4px solid var(--border);
+    box-shadow: 0 0 0 3px #000, 0 0 16px #000a;
+    image-rendering: pixelated;
+    background: #4a9a3a;
+    align-self: center;
+    width: 100%;
+  }
+  #world {
+    image-rendering: pixelated;
+    display: block;
+    width: 100%;
+    height: auto;
+    cursor: default;
+  }
+
+  #controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  #dpad {
+    position: relative;
+    width: 118px;
+    height: 118px;
+    flex-shrink: 0;
+  }
+  .dpad-btn {
+    position: absolute;
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0;
+    font-size: 14px;
+    box-shadow: 2px 2px 0 #000;
+  }
+  .dpad-up { top: 0; left: 40px; }
+  .dpad-down { top: 80px; left: 40px; }
+  .dpad-left { top: 40px; left: 0; }
+  .dpad-right { top: 40px; left: 80px; }
+
+  #buttons {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    align-content: center;
+  }
+  #buttons button { flex: 1 1 auto; min-width: 90px; }
+
+  /* ------------------ Quick-Time-Event (Angel-Minispiel) ------------------ */
+  #qteOverlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.82);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    z-index: 15;
+  }
+  #qteOverlay.show { display: flex; }
+  #qteBox {
+    background: var(--panel);
+    border: 4px solid var(--border);
+    padding: 14px;
+    width: 100%;
+    max-width: 300px;
+    text-align: center;
+  }
+  #qteTitle {
+    color: var(--accent);
+    font-size: 11px;
+    margin-bottom: 10px;
+    min-height: 28px;
+  }
+  #qteArea {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+  #qteTrack {
+    position: relative;
+    width: 50px;
+    height: 200px;
+    background: #04101c;
+    border: 3px solid var(--border);
+    overflow: hidden;
+  }
+  #qteZone {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    background: rgba(87,209,111,0.5);
+    border-top: 2px solid var(--uncommon);
+    border-bottom: 2px solid var(--uncommon);
+  }
+  #qteFish {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 15px;
+    line-height: 1;
+    transform: translateY(-50%);
+    filter: drop-shadow(0 0 2px #000);
+  }
+  #qteProgressWrap {
+    width: 18px;
+    height: 200px;
+    background: #04101c;
+    border: 3px solid var(--border);
+    display: flex;
+    align-items: flex-end;
+  }
+  #qteProgressBar {
+    width: 100%;
+    background: linear-gradient(180deg, #ffd23f, #ff9f43);
+    height: 35%;
+  }
+  #qteTimer { font-size: 9px; color: #9fc7e0; margin-bottom: 8px; }
+  #qteHoldBtn {
+    width: 100%;
+    min-height: 56px;
+    font-size: 12px;
+    background: #1a5c3a;
+    border-color: #2fae6e;
+  }
+  #qteHoldBtn:active { background: #1f7548; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>🎣 PIXEL ANGEL-RPG</h1>
+
+  <div id="hud">
+    <div class="col">
+      <span>Geld: <b id="hudMoney">0€</b></span>
+      <span>Level: <b id="hudLevel">1</b> (<span id="hudXp">0</span>/<span id="hudXpNext">100</span> XP)</span>
+      <div id="xpBarWrap"><div id="xpBar"></div></div>
+    </div>
+    <div class="col" style="text-align:right;">
+      <span>Rute: <b id="hudRod">Einfache Rute</b></span>
+      <span>Köder: <b id="hudBait">Wurm</b></span>
+      <span>Schwimmer: <b id="hudFloat">Standard-Schwimmer</b></span>
+      <span>Serie: <b id="hudStreak">0</b></span>
+      <span>Items: <b id="hudItems">0</b></span>
+      <span id="hudMysticRow" style="display:none;">🌟 Bereit: <b id="hudMystic">0</b></span>
+    </div>
+  </div>
+  <div id="hud2">
+    <span>🚤 Boot: <b id="hudBoat">Kein Boot (nur Ufer)</b></span>
+    <span>📍 Ort: <b id="hudLocation">Dorfplatz</b></span>
+  </div>
+
+  <div id="stage">
+    <canvas id="world" width="320" height="224"></canvas>
+  </div>
+
+  <div id="controls">
+    <div id="dpad">
+      <button id="dpad-up" class="dpad-btn dpad-up" type="button">▲</button>
+      <button id="dpad-left" class="dpad-btn dpad-left" type="button">◀</button>
+      <button id="dpad-right" class="dpad-btn dpad-right" type="button">▶</button>
+      <button id="dpad-down" class="dpad-btn dpad-down" type="button">▼</button>
+    </div>
+    <div id="buttons"></div>
+  </div>
+
+  <div id="feedWrap"></div>
+
+  <div id="resetLink">Spielstand zurücksetzen</div>
+  <div id="secretDot" title=""></div>
+</div>
+
+<div id="adminOverlay">
+  <div id="adminConsole">
+    <div id="adminLog"></div>
+    <div id="adminInputRow">
+      <span id="adminPrompt">&gt;</span>
+      <input id="adminInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Befehl eingeben...">
+      <button id="adminRun">OK</button>
+    </div>
+    <button id="adminClose">Konsole schließen</button>
+  </div>
+</div>
+
+<div id="modalOverlay">
+  <div id="modal">
+    <h2 id="modalTitle">Shop</h2>
+    <div id="modalBody"></div>
+    <button id="modalClose">Schließen</button>
+  </div>
+</div>
+
+<div id="qteOverlay">
+  <div id="qteBox">
+    <div id="qteTitle">🐟 Etwas beißt an!</div>
+    <div id="qteArea">
+      <div id="qteTrack">
+        <div id="qteZone"></div>
+        <div id="qteFish">🐟</div>
+      </div>
+      <div id="qteProgressWrap"><div id="qteProgressBar"></div></div>
+    </div>
+    <div id="qteTimer">Zeit: 14.0s</div>
+    <button id="qteHoldBtn" type="button">🎣 HALTEN zum Steigen</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ============================ DATEN (unverändert aus dem Original übernommen) ============================
+
+  const RARITY = ['common','uncommon','rare','epic','legendary','mystic'];
+  const RARITY_LABEL = {
+    common: 'Gewöhnlich', uncommon: 'Ungewöhnlich', rare: 'Selten',
+    epic: 'Episch', legendary: 'Legendär', mystic: 'Mystisch'
+  };
+  const RARITY_STAR = {
+    common: '⭐', uncommon: '⭐⭐', rare: '⭐⭐⭐',
+    epic: '🟣 EPIC', legendary: '👑', mystic: '✨ MYSTISCH ✨'
+  };
+
+  const FISH_TABLE = {
+    common: [
+      { name: 'Flussbarsch', value: 1200 },
+      { name: 'Rotauge', value: 850 },
+      { name: 'Karpfen', value: 1500 },
+      { name: 'Döbel', value: 700 },
+      { name: 'Brasse', value: 1100 },
+      { name: 'Schleie', value: 950 },
+      { name: 'Plötze', value: 800 },
+      { name: 'Grundel', value: 500 },
+      { name: 'Stichling', value: 400 },
+      { name: 'Hasel', value: 650 },
+      { name: 'Karausche', value: 350 },
+      { name: 'Giebel', value: 1120 },
+      { name: 'Moderlieschen', value: 650 },
+      { name: 'Bitterling', value: 1420 },
+      { name: 'Elritze', value: 940 },
+      { name: 'Schmerle', value: 460 },
+      { name: 'Steinbeißer', value: 1240 },
+      { name: 'Kaulbarsch', value: 760 },
+      { name: 'Ukelei', value: 1530 },
+      { name: 'Nase', value: 1050 },
+      { name: 'Aland', value: 580 },
+      { name: 'Quappe', value: 1350 },
+      { name: 'Regenbogenforelle', value: 870 },
+      { name: 'Bachsaibling', value: 390 },
+      { name: 'Seesaibling', value: 1170 },
+      { name: 'Renke', value: 690 },
+      { name: 'Marmorkarpfen', value: 1460 },
+      { name: 'Graskarpfen', value: 980 },
+      { name: 'Silberkarpfen', value: 510 },
+      { name: 'Silberkarausche', value: 1280 },
+      { name: 'Hering', value: 800 },
+      { name: 'Sardine', value: 1570 },
+      { name: 'Sprotte', value: 1100 },
+      { name: 'Sardelle', value: 620 },
+      { name: 'Makrele', value: 1390 },
+      { name: 'Scholle', value: 910 },
+      { name: 'Flunder', value: 440 },
+      { name: 'Kliesche', value: 1210 },
+      { name: 'Wittling', value: 730 },
+      { name: 'Seelachs', value: 1500 },
+      { name: 'Kabeljau', value: 1030 },
+      { name: 'Meeräsche', value: 550 },
+      { name: 'Sandaal', value: 1320 },
+      { name: 'Hornhecht', value: 840 },
+      { name: 'Stint', value: 370 },
+      { name: 'Neunauge', value: 1140 },
+      { name: 'Petermännchen', value: 660 },
+      { name: 'Seenadel', value: 1430 },
+      { name: 'Schleimfisch', value: 960 },
+      { name: 'Sandgrundel', value: 480 },
+      { name: 'Steinpicker', value: 1250 },
+      { name: 'Lippfisch', value: 770 },
+      { name: 'Meerbarbe', value: 1550 },
+      { name: 'Knurrhahn', value: 1070 },
+      { name: 'Butterfisch', value: 590 },
+      { name: 'Aalmutter', value: 1360 },
+      { name: 'Seeskorpion', value: 890 },
+      { name: 'Glattbutt', value: 410 },
+      { name: 'Sandflunder', value: 1180 },
+      { name: 'Katzenhai', value: 700 },
+      { name: 'Nagelrochen', value: 1480 },
+      { name: 'Sternrochen', value: 1000 },
+      { name: 'Marmorforelle', value: 520 },
+      { name: 'Seeforelle', value: 1290 },
+      { name: 'Huchen', value: 820 },
+      { name: 'Aitel', value: 1590 },
+      { name: 'Perlfisch', value: 1110 },
+      { name: 'Strömer', value: 630 },
+      { name: 'Schneider', value: 1410 },
+      { name: 'Zope', value: 930 },
+    ],
+    uncommon: [
+      { name: 'Zander', value: 4500 },
+      { name: 'Aal', value: 5200 },
+      { name: 'Hecht', value: 6100 },
+      { name: 'Bachforelle', value: 5000 },
+      { name: 'Äsche', value: 4800 },
+      { name: 'Barbe', value: 5500 },
+      { name: 'Rapfen', value: 5800 },
+      { name: 'Seezunge', value: 3500 },
+      { name: 'Rotbarsch', value: 5660 },
+      { name: 'Goldbrasse', value: 4330 },
+      { name: 'Wolfsbarsch', value: 6490 },
+      { name: 'Seehecht', value: 5150 },
+      { name: 'Pangasius', value: 3820 },
+      { name: 'Tilapia', value: 5980 },
+      { name: 'Meerforelle', value: 4640 },
+      { name: 'Lachsforelle', value: 6800 },
+      { name: 'Felchen', value: 5470 },
+      { name: 'Maifisch', value: 4130 },
+      { name: 'Finte', value: 6290 },
+      { name: 'Meerneunauge', value: 4960 },
+      { name: 'Bachneunauge', value: 3620 },
+      { name: 'Silberlachs', value: 5780 },
+      { name: 'Rotlachs', value: 4450 },
+      { name: 'Königslachs', value: 6610 },
+      { name: 'Buckellachs', value: 5270 },
+      { name: 'Ketalachs', value: 3940 },
+      { name: 'Rotfeder', value: 6100 },
+      { name: 'Zährte', value: 4760 },
+      { name: 'Meeraal', value: 6930 },
+      { name: 'Muränenaal', value: 5590 },
+      { name: 'Seewolf', value: 4250 },
+      { name: 'Schwarzer Heilbutt', value: 6410 },
+      { name: 'Rotzunge', value: 5080 },
+      { name: 'Limande', value: 3740 },
+      { name: 'Sandbarsch', value: 5900 },
+      { name: 'Streifenbarsch', value: 4570 },
+      { name: 'Forellenbarsch', value: 6730 },
+      { name: 'Sonnenbarsch', value: 5390 },
+      { name: 'Schwarzbarsch', value: 4060 },
+      { name: 'Kanalwels', value: 6220 },
+      { name: 'Zwergwels', value: 4880 },
+      { name: 'Antennenwels', value: 3550 },
+      { name: 'Panzerwels', value: 5710 },
+      { name: 'Guppy', value: 4370 },
+      { name: 'Skalar', value: 6540 },
+      { name: 'Diskusfisch', value: 5200 },
+      { name: 'Neonsalmler', value: 3860 },
+      { name: 'Kardinalfisch', value: 6020 },
+      { name: 'Clownfisch', value: 4690 },
+      { name: 'Kaiserfisch', value: 6850 },
+      { name: 'Falterfisch', value: 5510 },
+      { name: 'Doktorfisch', value: 4180 },
+      { name: 'Papageifisch', value: 6340 },
+      { name: 'Kugelfisch', value: 5000 },
+      { name: 'Igelfisch', value: 3670 },
+    ],
+    rare: [
+      { name: 'Waller', value: 22000 },
+      { name: 'Lachs', value: 18500 },
+      { name: 'Stör', value: 26000 },
+      { name: 'Heilbutt', value: 24000 },
+      { name: 'Steinbutt', value: 21000 },
+      { name: 'Zackenbarsch', value: 23000 },
+      { name: 'Roter Thun', value: 17000 },
+      { name: 'Weißer Thun', value: 23800 },
+      { name: 'Gelbflossen-Thun', value: 19600 },
+      { name: 'Königsmakrele', value: 26400 },
+      { name: 'Barrakuda', value: 22190 },
+      { name: 'Muräne', value: 17990 },
+      { name: 'Nilbarsch', value: 24790 },
+      { name: 'Tigerfisch', value: 20590 },
+      { name: 'Arapaima', value: 27390 },
+      { name: 'Piranha', value: 23190 },
+      { name: 'Elektrischer Aal', value: 18980 },
+      { name: 'Rochen', value: 25780 },
+      { name: 'Adlerrochen', value: 21580 },
+      { name: 'Sägefisch', value: 17380 },
+      { name: 'Geigenrochen', value: 24180 },
+      { name: 'Zitterrochen', value: 19980 },
+      { name: 'Fuchshai', value: 26770 },
+      { name: 'Blauhai', value: 22570 },
+      { name: 'Sandtigerhai', value: 18370 },
+      { name: 'Ammenhai', value: 25170 },
+      { name: 'Riffhai', value: 20970 },
+      { name: 'Bullenhai', value: 27770 },
+      { name: 'Makohai', value: 23560 },
+      { name: 'Engelhai', value: 19360 },
+      { name: 'Sechskiemerhai', value: 26160 },
+      { name: 'Wahoo', value: 21960 },
+      { name: 'Mahi-Mahi', value: 17760 },
+      { name: 'Königsbarsch', value: 24560 },
+      { name: 'Cobia', value: 20350 },
+    ],
+    epic: [
+      { name: 'Schwertfisch', value: 250000 },
+      { name: 'Blauer Marlin', value: 310000 },
+      { name: 'Blauflossen-Thun', value: 275000 },
+      { name: 'Hammerhai', value: 290000 },
+      { name: 'Mondfisch', value: 260000 },
+      { name: 'Riesenzackenbarsch', value: 300000 },
+      { name: 'Weißer Marlin', value: 240000 },
+      { name: 'Schwarzer Marlin', value: 301800 },
+      { name: 'Segelfisch', value: 263610 },
+      { name: 'Tigerhai', value: 325410 },
+      { name: 'Kupferhai', value: 287210 },
+      { name: 'Riesenhai', value: 249020 },
+      { name: 'Mantarochen', value: 310820 },
+      { name: 'Teufelsrochen', value: 272620 },
+      { name: 'Süßwasser-Stechrochen', value: 334430 },
+      { name: 'Goliath-Zackenbarsch', value: 296230 },
+      { name: 'Opah', value: 258030 },
+      { name: 'Riesen-Muräne', value: 319840 },
+      { name: 'Weißspitzen-Hochseehai', value: 281640 },
+      { name: 'Grönlandhai', value: 243440 },
+    ],
+    legendary: [
+      { name: 'Beluga-Stör', value: 1450000 },
+      { name: 'Quastenflosser', value: 1900000 },
+      { name: 'Riemenfisch', value: 1600000 },
+      { name: 'Mekong-Riesenwels', value: 1850000 },
+      { name: 'Riesenmanta', value: 1700000 },
+      { name: 'Sibirischer Stör', value: 1400000 },
+      { name: 'Schaufelstör', value: 1832620 },
+      { name: 'Goliath-Tigerfisch', value: 1565250 },
+      { name: 'Alligatorhecht', value: 1997870 },
+      { name: 'Tarpun', value: 1730500 },
+    ],
+    mystic: [
+      { name: 'Weißer Hai', value: 45678900 },
+      { name: 'Riesenkrake', value: 66574560 },
+      { name: 'Blauwal', value: 3345567678 },
+      { name: 'Der Kraken', value: 456789234567 },
+      { name: 'Nessie', value: 123456789012 },
+      { name: 'Megalodon', value: 987654321098 },
+      { name: 'Keto', value: 5678901234567 },
+      { name: 'Jörmungandr', value: 9999999999999 },
+      { name: 'U-Boot Wrack', value: 15000000000 },
+      { name: 'Leviathan', value: 2345678892456 },
+    ],
+  };
+  const MYSTIC_ICON = {
+    'Weißer Hai': '🦈', 'Riesenkrake': '🦑', 'Blauwal': '🔵', 'Der Kraken': '🐙',
+    'Nessie': '🦕', 'Megalodon': '🦈', 'Keto': '🧜', 'Jörmungandr': '🐍',
+    'U-Boot Wrack': '🚢', 'Leviathan': '🐉'
+  };
+  const RARITY_ICON = { common: '🐟', uncommon: '🐠', rare: '🐡', epic: '🦞', legendary: '🐋' };
+  // Canvas-Farben (kein CSS-Zugriff im <canvas>) für die Rauszieh-Animation pro Seltenheit
+  const RARITY_CANVAS_COLOR = {
+    common: '#b9c2c8', uncommon: '#57d16f', rare: '#4da6ff',
+    epic: '#b366ff', legendary: '#ffcc33', mystic: '#ff5fb0'
+  };
+
+  // Basisverteilung nach Wartezeit-Bucket (wird pro Cast normalisiert)
+  const WAIT_WEIGHTS = {
+    '2-9':   { common: 35, uncommon: 25, rare: 18, epic: 12, legendary: 6.45, mystic: 0.05 },
+    '10-19': { common: 20, uncommon: 20, rare: 20, epic: 20, legendary: 16.7, mystic: 0.3 },
+    '20-29': { common: 5,  uncommon: 10, rare: 15, epic: 25, legendary: 41,   mystic: 2 },
+    '30+':   { common: 0,  uncommon: 5,  rare: 10, epic: 20, legendary: 58,   mystic: 5 },
+  };
+
+  // Ruten müssen im Shop gekauft werden (außer der ersten, die man von Anfang an besitzt)
+  const RODS = [
+    { name: 'Einfache Rute',        price: 0,       waitBonus: 0,  qualityBonus: 0 },
+    { name: 'Bambusrute',           price: 20000,    waitBonus: -1, qualityBonus: 1 },
+    { name: 'Glasfaserrute',        price: 60000,    waitBonus: -2, qualityBonus: 3 },
+    { name: 'Karbon-Rute',          price: 150000,   waitBonus: -3, qualityBonus: 5 },
+    { name: 'Teleskoprute Pro',     price: 350000,   waitBonus: -4, qualityBonus: 7 },
+    { name: 'Meister-Rute',         price: 800000,   waitBonus: -5, qualityBonus: 10 },
+    { name: 'Turnier-Rute',         price: 2000000,  waitBonus: -6, qualityBonus: 14 },
+    { name: 'Legendäre Drachenrute',price: 6000000,  waitBonus: -7, qualityBonus: 20 },
+  ];
+  // 20 weitere Ruten-Stufen, deterministisch generiert (gleiche Werte bei jedem Neuladen)
+  (function extendRods() {
+    const NAMES = [
+      'Titanrute', 'Phantomrute', 'Kosmosrute', 'Void-Rute', 'Diamantrute',
+      'Plasmarute', 'Quantenrute', 'Fusionsrute', 'Ätherrute', 'Chronorute',
+      'Sternenrute', 'Nebelrute', 'Galaxienrute', 'Void-König-Rute', 'Unendlichkeitsrute',
+      'Urgewalt-Rute', 'Schicksalsrute', 'Ewigkeitsrute', 'Königliche Kosmosrute', 'Allmachts-Rute',
+    ];
+    for (let j = 0; j < NAMES.length; j++) {
+      RODS.push({
+        name: NAMES[j],
+        price: Math.round(6000000 * Math.pow(1.45, j + 1)),
+        waitBonus: -(8 + j),
+        qualityBonus: 20 + (j + 1) * 4,
+      });
+    }
+  })();
+
+  const BAITS = [
+    { name: 'Wurm',          price: 0,       qualityBonus: 0 },
+    { name: 'Kunstköder',    price: 15000,   qualityBonus: 3 },
+    { name: 'Glitzerköder',  price: 40000,   qualityBonus: 6 },
+    { name: 'Leuchtköder',   price: 100000,  qualityBonus: 9 },
+    { name: 'Zauberköder',   price: 300000,  qualityBonus: 13 },
+    { name: 'Kristallköder', price: 900000,  qualityBonus: 18 },
+    { name: 'Drachenköder',  price: 3000000, qualityBonus: 25 },
+    { name: 'Götterköder',   price: 10000000,qualityBonus: 35 },
+  ];
+
+  const BOATS = [
+    { name: 'Kein Boot (nur Ufer)', price: 0,       qualityBonus: 0, waitBonus: 0 },
+    { name: 'Schlauchboot',         price: 100000,  qualityBonus: 1, waitBonus: 0 },
+    { name: 'Angelboot',            price: 500000,  qualityBonus: 3, waitBonus: -1 },
+    { name: 'Hochseeyacht',         price: 3000000, qualityBonus: 6, waitBonus: -2 },
+  ];
+  // 20 weitere Boot-Stufen, deterministisch generiert
+  (function extendBoats() {
+    const NAMES = [
+      'Fischtrawler', 'Katamaran', 'Forschungsschiff', 'Kreuzer', 'Tiefsee-U-Boot',
+      'Fregatte', 'Zerstörer', 'Mini-Flugzeugträger', 'Geisterschiff', 'Piratengaleone',
+      'Wikingerschiff', 'Dampfer', 'Yacht Deluxe', 'Ozeanriese', 'Sternenschiff',
+      'Kraken-Bezwinger', 'Neptuns Flotte', 'Poseidons Dreizack-Schiff', 'Leviathan-Jäger', 'Admiralsflotte',
+    ];
+    for (let j = 0; j < NAMES.length; j++) {
+      BOATS.push({
+        name: NAMES[j],
+        price: Math.round(3000000 * Math.pow(1.5, j + 1)),
+        qualityBonus: 6 + (j + 1) * 3,
+        waitBonus: -(2 + Math.floor((j + 1) / 2)),
+      });
+    }
+  })();
+
+  // Gewässer: 'ufer' ist immer kostenlos verfügbar, alle anderen brauchen ein Boot + Ticket
+  const WATERS = [
+    { id: 'ufer',    name: 'Ufer',            requiredBoat: 0, quality: 0,  wait: 0,  mysticFlat: 0,   ticketPrice: 0 },
+    { id: 'see',     name: 'Ruhiger See',     requiredBoat: 1, quality: 4,  wait: -1, mysticFlat: 0.5, ticketPrice: 15000 },
+    { id: 'fluss',   name: 'Flussmündung',    requiredBoat: 1, quality: 6,  wait: 0,  mysticFlat: 1,   ticketPrice: 30000 },
+    { id: 'meer',    name: 'Offenes Meer',    requiredBoat: 2, quality: 10, wait: 2,  mysticFlat: 2,   ticketPrice: 75000 },
+    { id: 'tiefsee', name: 'Tiefsee',         requiredBoat: 3, quality: 16, wait: 4,  mysticFlat: 4,   ticketPrice: 200000 },
+  ];
+
+  const SHOP_ITEMS = [
+    {
+      id: 'amulet', name: '🍀 Glücksamulett', price: 50000,
+      desc: '+5 Qualitäts-Bonus: verschiebt Fangchancen leicht weg von "Gewöhnlich" hin zu selteneren Stufen.',
+      effect: { quality: 5 }
+    },
+    {
+      id: 'reel', name: '🎣 Turbo-Rolle', price: 80000,
+      desc: 'Verkürzt die Wartezeit bei jedem Wurf um ca. 4 Sekunden.',
+      effect: { wait: -4 }
+    },
+    {
+      id: 'hook', name: '✨ Zauberhaken', price: 120000,
+      desc: '+15% Angel-XP auf jeden Fang.',
+      effect: { xpMult: 0.15 }
+    },
+    {
+      id: 'necklace', name: '📿 Perlenkette', price: 60000,
+      desc: 'Deine Serie geht beim Wechseln von Rute, Köder oder Gewässer nicht mehr verloren.',
+      effect: { streakProtect: true }
+    },
+    {
+      id: 'compass', name: '🧭 Kompass des Kapitäns', price: 250000,
+      desc: '+3 Qualitäts-Bonus und zusätzlich +2 Punkte direkt auf die Mystisch-Chance.',
+      effect: { quality: 3, mysticFlat: 2 }
+    },
+    {
+      id: 'net', name: '🕸️ Netz der Tiefe', price: 400000,
+      desc: '+10 Qualitäts-Bonus für richtig große Fänge – dafür +3s Wartezeit, weil das Netz schwer zu handhaben ist.',
+      effect: { quality: 10, wait: 3 }
+    },
+  ];
+
+  // ---- 54 zusätzliche Shop-Trinkets, deterministisch generiert (nicht zufällig!) ----
+  // Deterministisch = wichtig, damit bereits gekaufte Items nach dem Neuladen der Seite
+  // dieselbe ID/denselben Effekt behalten und der Spielstand konsistent bleibt.
+  (function generateExtraShopItems() {
+    const ADJ = ['Rostiger','Glänzender','Uralter','Verzauberter','Kristallener','Schimmernder','Verfluchter','Heiliger','Wilder','Stiller','Goldener','Silberner','Bronzener','Sturm-','Tiefsee-','Gezeiten-','Mond-','Sonnen-','Nebel-','Geister-','Kraken-','Neptuns-','Poseidons-','Bernstein-'];
+    const NOUN = ['Anhänger','Ring','Armband','Talisman','Kompass','Schlüssel','Kristall','Fläschchen','Amulett','Siegel','Zahn','Feder','Schuppe','Muschel','Anker','Kette','Krone','Spiegel','Karte','Flasche'];
+    const EMOJI = ['🔮','🪙','🧿','🐚','⚓','🗝️','💎','🧵','🪝','🌊','🦪','🧭','🔱','🪞','🏺'];
+    const COUNT = 54;
+    for (let i = 0; i < COUNT; i++) {
+      const adj = ADJ[i % ADJ.length];
+      const noun = NOUN[(i * 3 + 1) % NOUN.length];
+      const emoji = EMOJI[i % EMOJI.length];
+      const name = `${emoji} ${adj} ${noun}`;
+      const price = Math.round(5000 * Math.pow(1.28, i));
+      const pattern = i % 4;
+      let effect = {}, descPart = '';
+      if (pattern === 0) {
+        const q = 1 + Math.floor(i / 4);
+        effect = { quality: q };
+        descPart = `+${q} Qualitäts-Bonus (bessere Seltenheits-Chance).`;
+      } else if (pattern === 1) {
+        const w = Math.min(9, 1 + Math.floor(i / 4));
+        effect = { wait: -w };
+        descPart = `Verkürzt die Wartezeit um ca. ${w}s pro Wurf.`;
+      } else if (pattern === 2) {
+        const xp = Math.round((0.02 * (i + 1)) * 100) / 100;
+        effect = { xpMult: xp };
+        descPart = `+${Math.round(xp * 100)}% Angel-XP pro Fang.`;
+      } else {
+        const m = Math.round((0.15 * (i + 1)) * 10) / 10;
+        effect = { mysticFlat: m };
+        descPart = `+${m} Punkte direkt auf die Mystisch-Chance.`;
+      }
+      SHOP_ITEMS.push({
+        id: `gen_${i}`,
+        name,
+        price,
+        desc: descPart,
+        effect
+      });
+    }
+  })();
+
+  // ---- Admin-exklusive Items: NICHT im normalen Shop kaufbar, nur über geheime Codes freischaltbar ----
+  const ADMIN_ITEMS = [
+    { id: 'admin_zeitbrecher',       name: '⏳ Zeitbrecher (Admin)',           desc: 'Massive Wartezeit-Verkürzung.', effect: { wait: -10, quality: 15 } },
+    { id: 'admin_unendlichkeit',     name: '♾️ Unendlichkeitsperle (Admin)',   desc: 'Serie geht nie verloren, +100% XP.', effect: { streakProtect: true, xpMult: 1.0 } },
+    { id: 'admin_ozeankrone',        name: '👑 Ozean-Krone (Admin)',           desc: 'Enormer Qualitäts- und Mystisch-Bonus.', effect: { quality: 25, mysticFlat: 10 } },
+    { id: 'admin_zeitlupenanker',    name: '⚓ Zeitlupen-Anker (Admin)',       desc: 'Starke Wartezeit-Verkürzung.', effect: { wait: -8 } },
+    { id: 'admin_drachenschuppe',    name: '🐉 Drachenschuppe (Admin)',        desc: 'Verdoppelt die Angel-XP.', effect: { xpMult: 1.0 } },
+    { id: 'admin_sirenenruf',        name: '🧜 Sirenenruf (Admin)',            desc: 'Starker Direkt-Bonus auf Mystisch-Chance.', effect: { mysticFlat: 15 } },
+    { id: 'admin_phoenixfeder',      name: '🔥 Phönixfeder (Admin)',           desc: 'Serie bleibt erhalten + Qualitäts-Bonus.', effect: { streakProtect: true, quality: 10 } },
+    { id: 'admin_voidnetz',          name: '🕳️ Void-Netz (Admin)',            desc: 'Riesiger Qualitäts-Bonus, aber langsamer.', effect: { quality: 30, wait: 10 } },
+    { id: 'admin_sturmrute',         name: '⚡ Sturmrute (Admin)',             desc: 'Schnell UND besser.', effect: { wait: -6, quality: 8 } },
+    { id: 'admin_goldwaage',         name: '⚖️ Goldwaage (Admin)',             desc: 'Mehr XP und etwas bessere Qualität.', effect: { xpMult: 0.5, quality: 5 } },
+  ];
+
+  // Verbrauchsgegenstände: nach Kauf im Bestand, werden bei Benutzung verbraucht (nicht dauerhaft wie SHOP_ITEMS)
+  const CONSUMABLES = [
+    {
+      id: 'mysticbait', name: '🌟 Mystik-Köder', price: 2000000,
+      desc: 'Einmalig verwendbar: garantiert beim NÄCHSTEN Wurf einen mystischen Fang – unabhängig von Wartezeit und Chancen. Wird danach verbraucht.',
+    },
+  ];
+
+  // ============================ NEUE DATEN FÜR DIE RPG-VERSION ============================
+
+  // Schwimmer sind rein kosmetisch: kein qualityBonus/waitBonus, nur Farben für die Zeichnung.
+  const FLOATS = [
+    { name: 'Standard-Schwimmer', price: 0,      colorTop: '#e03030', colorBottom: '#ffffff' },
+    { name: 'Blauer Schwimmer',   price: 20000,  colorTop: '#2050c0', colorBottom: '#eaf6ff' },
+    { name: 'Giftgrüner Schwimmer', price: 50000, colorTop: '#3ecf3e', colorBottom: '#0a2a0a' },
+    { name: 'Goldener Schwimmer', price: 150000, colorTop: '#ffd23f', colorBottom: '#7a5a00' },
+    { name: 'Mystischer Schwimmer', price: 500000, colorTop: '#ff5fb0', colorBottom: '#3a0a2a' },
+  ];
+
+  // Eine Konfiguration pro Kleidungs-Kategorie – alle 4 funktionieren nach demselben Schema.
+  // "color: null" bedeutet: nichts zeichnen (z. B. "Keine Brille").
+  const APPEARANCE = {
+    hut: {
+      label: 'Hut', icon: '🎩',
+      options: [
+        { name: 'Standard-Hut', price: 0,      color: '#2a3a2a' },
+        { name: 'Roter Hut',    price: 20000,  color: '#a83232' },
+        { name: 'Blauer Hut',   price: 20000,  color: '#2f4fa0' },
+        { name: 'Goldener Hut', price: 100000, color: '#d4af37' },
+      ]
+    },
+    shirt: {
+      label: 'Shirt', icon: '👕',
+      options: [
+        { name: 'Standard-Shirt', price: 0,      color: '#3a4a5a' },
+        { name: 'Rotes Shirt',    price: 20000,  color: '#8a2c2c' },
+        { name: 'Grünes Shirt',   price: 20000,  color: '#2c8a3e' },
+        { name: 'Violettes Shirt',price: 100000, color: '#7a3cae' },
+      ]
+    },
+    hose: {
+      label: 'Hose', icon: '👖',
+      options: [
+        { name: 'Standard-Hose', price: 0,      color: '#3a4a5a' },
+        { name: 'Braune Hose',   price: 20000,  color: '#5a3d1e' },
+        { name: 'Schwarze Hose', price: 20000,  color: '#1a1a1a' },
+        { name: 'Camo-Hose',     price: 100000, color: '#4a5a2a' },
+      ]
+    },
+    brille: {
+      label: 'Brille', icon: '🕶️',
+      options: [
+        { name: 'Keine Brille',    price: 0,      color: null },
+        { name: 'Sonnenbrille',    price: 30000,  color: '#111111' },
+        { name: 'Pilotenbrille',   price: 60000,  color: '#4da6ff' },
+        { name: 'Diamant-Brille',  price: 200000, color: '#e0f7ff' },
+      ]
+    },
+  };
+
+  // Begrenzt verfügbare Items: feste Stückzahl (maxStock) im ganzen Spiel.
+  // Jedes gekaufte Stück wirkt wie ein normales Shop-Item (Effekt in getGearBonuses()),
+  // aber sobald maxStock erreicht ist, ist Schluss ("Ausverkauft").
+  const LIMITED_ITEMS = [
+    {
+      id: 'lim_sturmanker', name: '⚡ Sturm-Anker', price: 500000,
+      desc: '+2 Qualitäts-Bonus pro Stück. Nur 3 Stück verfügbar!',
+      effect: { quality: 2 }, maxStock: 3
+    },
+    {
+      id: 'lim_mondamulett', name: '🌙 Mond-Amulett', price: 750000,
+      desc: '+1 Punkt auf die Mystisch-Chance pro Stück. Nur 2 Stück verfügbar!',
+      effect: { mysticFlat: 1 }, maxStock: 2
+    },
+  ];
+
+  // Schwierigkeit des Angel-Minispiels (Quick-Time-Event) pro Seltenheits-Stufe.
+  // zoneHeight = Höhe der grünen Fangzone (px im Minispiel-Balken, größer = leichter).
+  // fishSpeed/fishJitter = wie schnell/unruhig sich der Fisch bewegt (höher = schwerer).
+  // fillRate/drainRate = wie schnell die Fortschrittsleiste steigt/fällt (% pro Sekunde).
+  const QTE_DIFFICULTY = {
+    common:    { zoneHeight: 90, fishSpeed: 1.0,  fishJitter: 6,  fillRate: 60, drainRate: 30 },
+    uncommon:  { zoneHeight: 78, fishSpeed: 1.15, fishJitter: 8,  fillRate: 55, drainRate: 34 },
+    rare:      { zoneHeight: 66, fishSpeed: 1.3,  fishJitter: 10, fillRate: 50, drainRate: 38 },
+    epic:      { zoneHeight: 56, fishSpeed: 1.5,  fishJitter: 13, fillRate: 46, drainRate: 42 },
+    legendary: { zoneHeight: 46, fishSpeed: 1.7,  fishJitter: 16, fillRate: 42, drainRate: 47 },
+    mystic:    { zoneHeight: 38, fishSpeed: 1.9,  fishJitter: 20, fillRate: 40, drainRate: 52 },
+  };
+
+  // ---------------------- DORF-KARTE ----------------------
+  // Die Karte ist ein Raster aus Kacheln (Tiles). Statt sie als Text-Strings zu tippen
+  // (leicht zu verzählen!), bauen wir sie per Code zusammen: erst Gras+Rand, dann
+  // Gebäude und Gewässer als Rechtecke hineinstempeln. So bleibt sie garantiert korrekt
+  // und du kannst später leicht ein weiteres Gebäude/Gewässer hinzufügen.
+  const TILE = 16;   // Pixelgröße einer Kachel
+  const COLS = 20;   // Karten-Breite in Kacheln
+  const ROWS = 14;   // Karten-Höhe in Kacheln
+
+  const mapGrid = [];
+  for (let y = 0; y < ROWS; y++) {
+    const row = [];
+    for (let x = 0; x < COLS; x++) {
+      row.push((x === 0 || x === COLS - 1 || y === 0 || y === ROWS - 1) ? 'T' : '.');
+    }
+    mapGrid.push(row);
+  }
+
+  const doorTiles = {}; // buildingId -> {x,y} der Tür-Kachel, für Icons/Beschriftung
+
+  // Stempelt ein 3 breites x 2 hohes Gebäude in die Karte. doorOffsetX (0,1,2) bestimmt,
+  // welche der 3 unteren Kacheln die begehbare/interaktive Tür ist.
+  function placeBuilding(x0, y0, doorOffsetX, wallCode, doorCode, buildingId) {
+    for (let dx = 0; dx < 3; dx++) mapGrid[y0][x0 + dx] = wallCode;
+    for (let dx = 0; dx < 3; dx++) mapGrid[y0 + 1][x0 + dx] = (dx === doorOffsetX) ? doorCode : wallCode;
+    doorTiles[buildingId] = { x: x0 + doorOffsetX, y: y0 + 1 };
+  }
+  function placeWaterBlock(x0, y0, w, h, code) {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) mapGrid[y0 + y][x0 + x] = code;
+  }
+
+  placeBuilding(3, 2, 1, 'R', 'r', 'angel');      // Angel-Shop
+  placeBuilding(8, 2, 1, 'F', 'f', 'flidl');      // Flidl
+  placeBuilding(3, 5, 1, 'K', 'k', 'klamotten');  // Klamottenladen
+  placeBuilding(8, 5, 1, 'B', 'b', 'boote');      // Boots-Haus
+
+  placeWaterBlock(13, 2, 3, 3, 'W');   // Dorfteich – kostenlos, direkt vom Ufer aus
+  placeWaterBlock(1, 11, 18, 2, 'V');  // Flussufer – braucht mindestens ein Schlauchboot
+
+  // Eigenschaften pro Kachel-Code: begehbar? welche Art? bei Türen/Gewässern zusätzliche Infos.
+  const TILE_DEFS = {
+    '.': { walkable: true,  kind: 'grass' },
+    'T': { walkable: false, kind: 'tree' },
+    'W': { walkable: false, kind: 'water', waterId: 'ufer', label: 'Dorfteich' },
+    'V': { walkable: false, kind: 'water', waterId: 'see',  label: 'Flussufer' },
+    'R': { walkable: false, kind: 'wall', color: '#7a5a3a' },
+    'r': { walkable: false, kind: 'door', building: 'angel' },
+    'F': { walkable: false, kind: 'wall', color: '#3a5a7a' },
+    'f': { walkable: false, kind: 'door', building: 'flidl' },
+    'K': { walkable: false, kind: 'wall', color: '#5a3a6a' },
+    'k': { walkable: false, kind: 'door', building: 'klamotten' },
+    'B': { walkable: false, kind: 'wall', color: '#3a6a4a' },
+    'b': { walkable: false, kind: 'door', building: 'boote' },
+  };
+
+  // Welches Gebäude zeigt welche Shop-Tabs, wenn man die Tür betritt.
+  const BUILDINGS = {
+    angel:     { title: '🎣 Angel-Shop',      tabs: ['ruten', 'koeder', 'schwimmer'], icon: '🎣' },
+    flidl:     { title: '🛒 Flidl',           tabs: ['items', 'limitiert'],           icon: '🛒' },
+    klamotten: { title: '👕 Klamottenladen',  tabs: ['outfit'],                       icon: '👕' },
+    boote:     { title: '🚤 Boots-Haus',      tabs: ['boote'],                        icon: '🚤' },
+  };
+
+  const TAB_META = {
+    ruten:     { label: '🎣 Ruten' },
+    koeder:    { label: '🪱 Köder' },
+    schwimmer: { label: '🎈 Schwimmer' },
+    boote:     { label: '🚤 Boote' },
+    items:     { label: '✨ Items' },
+    limitiert: { label: '🌟 Limitiert' },
+    outfit:    { label: '👤 Outfit' },
+  };
+
+  function getWater(id) { return WATERS.find(w => w.id === id); }
+
+  // ============================ STATE ============================
+
+  let money = 0;
+  let xp = 0;
+  let level = 1;
+  let xpNext = 100;
+  let streak = 0;
+  let rodIndex = 0;
+  let baitIndex = 0;
+  let floatIndex = 0;
+  let ownedRods = new Set([0]);
+  let ownedBaits = new Set([0]);
+  let ownedFloats = new Set([0]);
+  let ownedBoatLevel = 0;
+  let inventory = [];
+  let ownedItems = new Set();
+  let ownedAdminItems = new Set();
+  let consumables = {};   // Bestand (gekauft, aber noch nicht eingelöst)
+  let armed = {};         // eingelöst -> wirkt beim nächsten passenden Wurf
+  let limitedBought = {}; // { itemId: Anzahl, die DIESER Spieler schon gekauft hat }
+  let appearanceIndex = { hut: 0, shirt: 0, hose: 0, brille: 0 };
+  let ownedAppearance = {
+    hut: new Set([0]), shirt: new Set([0]), hose: new Set([0]), brille: new Set([0])
+  };
+  let busy = false;
+  let invTab = 'fische';
+  let discovered = new Set(); // Namen aller jemals gefangenen Fische -> fürs Lexikon
+
+  // ---- Karte / Bewegung ----
+  let playerCol = 10, playerRow = 8; // Start: offener Platz in der Dorfmitte
+  let playerDir = 'down';
+  let isMoving = false;
+  let moveProgress = 0;
+  let moveFromCol = playerCol, moveFromRow = playerRow;
+  let moveToCol = playerCol, moveToRow = playerRow;
+  let playerPixelX = playerCol * TILE + TILE / 2;
+  let playerPixelY = playerRow * TILE + TILE / 2;
+  let heldDirs = { up: false, down: false, left: false, right: false };
+  let lastDir = 'down';
+  let waveT = 0;
+
+  // ---- Shop-Modal Kontext (welches Gebäude wurde betreten) ----
+  let shopTab = 'ruten';
+  let shopAllowedTabs = ['ruten', 'koeder', 'schwimmer'];
+  let shopTitle = '🎣 Angel-Shop';
+
+  // ---- Quick-Time-Event (Angel-Minispiel) ----
+  let qte = null;
+
+  // ============================ DOM ============================
+
+  const feedWrap = document.getElementById('feedWrap');
+  const buttonsEl = document.getElementById('buttons');
+  const hudMoney = document.getElementById('hudMoney');
+  const hudLevel = document.getElementById('hudLevel');
+  const hudXp = document.getElementById('hudXp');
+  const hudXpNext = document.getElementById('hudXpNext');
+  const xpBar = document.getElementById('xpBar');
+  const hudRod = document.getElementById('hudRod');
+  const hudBait = document.getElementById('hudBait');
+  const hudFloat = document.getElementById('hudFloat');
+  const hudStreak = document.getElementById('hudStreak');
+  const hudItems = document.getElementById('hudItems');
+  const hudMysticRow = document.getElementById('hudMysticRow');
+  const hudMystic = document.getElementById('hudMystic');
+  const hudBoat = document.getElementById('hudBoat');
+  const hudLocation = document.getElementById('hudLocation');
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalClose = document.getElementById('modalClose');
+  const resetLink = document.getElementById('resetLink');
+  const secretDot = document.getElementById('secretDot');
+  const adminOverlay = document.getElementById('adminOverlay');
+  const adminLog = document.getElementById('adminLog');
+  const adminInput = document.getElementById('adminInput');
+  const adminRun = document.getElementById('adminRun');
+  const adminClose = document.getElementById('adminClose');
+  const qteOverlay = document.getElementById('qteOverlay');
+  const qteTitleEl = document.getElementById('qteTitle');
+  const qteZone = document.getElementById('qteZone');
+  const qteFish = document.getElementById('qteFish');
+  const qteProgressBar = document.getElementById('qteProgressBar');
+  const qteTimerEl = document.getElementById('qteTimer');
+  const qteHoldBtn = document.getElementById('qteHoldBtn');
+
+  modalClose.addEventListener('click', () => {
+    modalOverlay.classList.remove('show');
+    refreshActions();
+  });
+
+  function fmtMoney(v) {
+    return Math.round(v).toLocaleString('de-DE') + '€';
+  }
+
+  // ------------------ Speichern / Laden (localStorage) ------------------
+  // Neuer Save-Key für die RPG-Version, damit die alte Datei unabhängig weiterläuft.
+  // Existiert noch kein RPG-Spielstand, wird EINMALIG der alte Spielstand importiert
+  // (Geld, Ruten, Level, Fische, ...) und danach unter dem neuen Key gespeichert.
+  const SAVE_KEY = 'pixelAngelRPG_v2';
+  const OLD_SAVE_KEY = 'pixelAngelSimulatorSave_v1';
+
+  function saveState() {
+    try {
+      const data = {
+        money, xp, level, xpNext, streak,
+        rodIndex, baitIndex, floatIndex,
+        ownedRods: Array.from(ownedRods),
+        ownedBaits: Array.from(ownedBaits),
+        ownedFloats: Array.from(ownedFloats),
+        ownedBoatLevel,
+        inventory,
+        ownedItems: Array.from(ownedItems),
+        ownedAdminItems: Array.from(ownedAdminItems),
+        consumables,
+        armed,
+        discovered: Array.from(discovered),
+        limitedBought,
+        appearanceIndex,
+        ownedAppearance: {
+          hut: Array.from(ownedAppearance.hut),
+          shirt: Array.from(ownedAppearance.shirt),
+          hose: Array.from(ownedAppearance.hose),
+          brille: Array.from(ownedAppearance.brille),
+        },
+        playerCol, playerRow,
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    } catch (e) {
+      // z. B. privater Browser-Modus ohne Speicherzugriff -> einfach ignorieren
+    }
+  }
+
+  function loadState() {
+    try {
+      let raw = localStorage.getItem(SAVE_KEY);
+      let migratedFromV1 = false;
+      if (!raw) {
+        raw = localStorage.getItem(OLD_SAVE_KEY);
+        if (raw) migratedFromV1 = true;
+      }
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+
+      money = data.money || 0;
+      xp = data.xp || 0;
+      level = data.level || 1;
+      xpNext = data.xpNext || 100;
+      streak = data.streak || 0;
+      rodIndex = data.rodIndex || 0;
+      baitIndex = data.baitIndex || 0;
+      floatIndex = data.floatIndex || 0;
+      ownedRods = new Set(data.ownedRods && data.ownedRods.length ? data.ownedRods : [0]);
+      ownedBaits = new Set(data.ownedBaits && data.ownedBaits.length ? data.ownedBaits : [0]);
+      ownedFloats = new Set(data.ownedFloats && data.ownedFloats.length ? data.ownedFloats : [0]);
+      ownedBoatLevel = data.ownedBoatLevel || 0;
+      inventory = data.inventory || [];
+      ownedItems = new Set(data.ownedItems || []);
+      ownedAdminItems = new Set(data.ownedAdminItems || []);
+      consumables = data.consumables || {};
+      armed = data.armed || {};
+      discovered = new Set(data.discovered || []);
+      limitedBought = data.limitedBought || {};
+      appearanceIndex = data.appearanceIndex || { hut: 0, shirt: 0, hose: 0, brille: 0 };
+      const oa = data.ownedAppearance || {};
+      ownedAppearance = {
+        hut: new Set(oa.hut && oa.hut.length ? oa.hut : [0]),
+        shirt: new Set(oa.shirt && oa.shirt.length ? oa.shirt : [0]),
+        hose: new Set(oa.hose && oa.hose.length ? oa.hose : [0]),
+        brille: new Set(oa.brille && oa.brille.length ? oa.brille : [0]),
+      };
+      if (typeof data.playerCol === 'number') playerCol = data.playerCol;
+      if (typeof data.playerRow === 'number') playerRow = data.playerRow;
+      moveFromCol = moveToCol = playerCol;
+      moveFromRow = moveToRow = playerRow;
+      playerPixelX = playerCol * TILE + TILE / 2;
+      playerPixelY = playerRow * TILE + TILE / 2;
+
+      if (migratedFromV1) saveState();
+      return { loaded: true, migrated: migratedFromV1 };
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function resetState() {
+    const ok = confirm('Spielstand wirklich löschen? Das kann nicht rückgängig gemacht werden.');
+    if (!ok) return;
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+    location.reload();
+  }
+  resetLink.addEventListener('click', resetState);
+
+  // ------------------ Geheime Admin-Konsole ------------------
+  // Öffnen: auf dem PC das Wort "admin" tippen (irgendwo auf der Seite),
+  // auf dem Handy 5x schnell auf den fast unsichtbaren Punkt unten tippen.
+
+  let keyBuffer = '';
+  window.addEventListener('keydown', (e) => {
+    if (adminOverlay.classList.contains('show')) return;
+    if (e.key.length === 1) {
+      keyBuffer = (keyBuffer + e.key).slice(-10).toLowerCase();
+      if (keyBuffer.includes('admin')) {
+        keyBuffer = '';
+        openAdminConsole();
+      }
+    }
+  });
+
+  let dotTaps = 0, dotTapTimer = null;
+  secretDot.addEventListener('click', () => {
+    dotTaps++;
+    clearTimeout(dotTapTimer);
+    dotTapTimer = setTimeout(() => { dotTaps = 0; }, 1500);
+    if (dotTaps >= 5) {
+      dotTaps = 0;
+      openAdminConsole();
+    }
+  });
+
+  function openAdminConsole() {
+    adminLog.innerHTML = '';
+    logAdmin('=== KONSOLE ===');
+    logAdmin('Code eingeben...');
+    adminOverlay.classList.add('show');
+    setTimeout(() => adminInput.focus(), 50);
+  }
+
+  function closeAdminConsole() {
+    adminOverlay.classList.remove('show');
+    adminInput.value = '';
+  }
+  adminClose.addEventListener('click', closeAdminConsole);
+
+  function logAdmin(text) {
+    const line = document.createElement('div');
+    line.textContent = text;
+    adminLog.appendChild(line);
+    adminLog.scrollTop = adminLog.scrollHeight;
+  }
+
+  function unlockAdminItem(id) {
+    const item = ADMIN_ITEMS.find(x => x.id === id);
+    if (!item) return;
+    if (ownedAdminItems.has(id)) {
+      logAdmin(`Bereits freigeschaltet: ${item.name}`);
+      return;
+    }
+    ownedAdminItems.add(id);
+    updateHud();
+    logAdmin(`OK: ${item.name} freigeschaltet! (${item.desc})`);
+  }
+
+  function runAdminCommand(raw) {
+    const input = raw.trim();
+    if (!input) return;
+    logAdmin('> ' + input);
+    const parts = input.split(/\s+/);
+    const code = parts[0];
+    const arg = parts[1];
+    const isNumber = /^\d+$/.test(arg || '');
+
+    const ADMIN_ITEM_CODES = {
+      '601': 'admin_zeitbrecher',
+      '602': 'admin_unendlichkeit',
+      '603': 'admin_ozeankrone',
+      '604': 'admin_zeitlupenanker',
+      '605': 'admin_drachenschuppe',
+      '606': 'admin_sirenenruf',
+      '607': 'admin_phoenixfeder',
+      '608': 'admin_voidnetz',
+      '609': 'admin_sturmrute',
+      '610': 'admin_goldwaage',
+    };
+
+    if (code === '100') {
+      if (!isNumber) { logAdmin('Ungültig.'); return; }
+      money += parseInt(arg, 10);
+      updateHud();
+      logAdmin(`OK. Kontostand: ${fmtMoney(money)}`);
+    } else if (code === '200') {
+      if (!isNumber) { logAdmin('Ungültig.'); return; }
+      addXp(parseInt(arg, 10));
+      logAdmin('OK.');
+    } else if (code === '300') {
+      const fish = pickFish('mystic');
+      inventory.push({ name: fish.name, value: fish.value, rarity: 'mystic' });
+      discovered.add(fish.name);
+      updateHud();
+      logAdmin(`OK: ${fish.name} ins Inventar gelegt.`);
+    } else if (code === '400') {
+      if (!isNumber) { logAdmin('Ungültig.'); return; }
+      consumables.mysticbait = (consumables.mysticbait || 0) + parseInt(arg, 10);
+      updateHud();
+      logAdmin(`OK. Mystik-Köder: ${consumables.mysticbait}`);
+    } else if (code === '500') {
+      RODS.forEach((r, i) => ownedRods.add(i));
+      BAITS.forEach((b, i) => ownedBaits.add(i));
+      FLOATS.forEach((f, i) => ownedFloats.add(i));
+      Object.keys(APPEARANCE).forEach(cat => APPEARANCE[cat].options.forEach((o, i) => ownedAppearance[cat].add(i)));
+      ownedBoatLevel = BOATS.length - 1;
+      SHOP_ITEMS.forEach(item => ownedItems.add(item.id));
+      updateHud();
+      logAdmin('OK: alle normalen Ruten/Köder/Schwimmer/Outfits/Boote/Items freigeschaltet.');
+    } else if (code === '530') {
+      limitedBought = {};
+      updateHud();
+      logAdmin('OK: Limitierte Items im Flidl wieder aufgefüllt.');
+    } else if (code === '950') {
+      ownedBoatLevel = BOATS.length - 1;
+      updateHud();
+      logAdmin(`OK: Boot auf Maximum (${BOATS[ownedBoatLevel].name}).`);
+    } else if (code === '999') {
+      logAdmin('Setze Spielstand zurück...');
+      setTimeout(resetState, 400);
+    } else if (ADMIN_ITEM_CODES[code]) {
+      unlockAdminItem(ADMIN_ITEM_CODES[code]);
+    } else if (code === '777') {
+      RODS.forEach((r, i) => ownedRods.add(i));
+      BAITS.forEach((b, i) => ownedBaits.add(i));
+      FLOATS.forEach((f, i) => ownedFloats.add(i));
+      Object.keys(APPEARANCE).forEach(cat => APPEARANCE[cat].options.forEach((o, i) => ownedAppearance[cat].add(i)));
+      ownedBoatLevel = BOATS.length - 1;
+      SHOP_ITEMS.forEach(item => ownedItems.add(item.id));
+      ADMIN_ITEMS.forEach(item => ownedAdminItems.add(item.id));
+      LIMITED_ITEMS.forEach(item => { limitedBought[item.id] = item.maxStock; });
+      money += 100000000;
+      updateHud();
+      logAdmin('OK: ALLES freigeschaltet (God-Mode).');
+    } else {
+      logAdmin('Ungültiger Code.');
+    }
+  }
+
+  adminRun.addEventListener('click', () => {
+    runAdminCommand(adminInput.value);
+    adminInput.value = '';
+  });
+  adminInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      runAdminCommand(adminInput.value);
+      adminInput.value = '';
+    }
+    e.stopPropagation();
+  });
+
+  // ============================ BONI ============================
+
+  // Alles, was von Ausrüstung/Items kommt (unabhängig davon, ob/wo gerade geangelt wird).
+  function getGearBonuses() {
+    let quality = RODS[rodIndex].qualityBonus + BAITS[baitIndex].qualityBonus;
+    let waitBonus = RODS[rodIndex].waitBonus;
+    let xpMult = 1;
+    let mysticFlat = 0;
+    let streakProtect = false;
+
+    const boat = BOATS[ownedBoatLevel];
+    if (boat) { quality += boat.qualityBonus || 0; waitBonus += boat.waitBonus || 0; }
+
+    const applyEffect = (e) => {
+      if (e.quality) quality += e.quality;
+      if (e.wait) waitBonus += e.wait;
+      if (e.xpMult) xpMult += e.xpMult;
+      if (e.mysticFlat) mysticFlat += e.mysticFlat;
+      if (e.streakProtect) streakProtect = true;
+    };
+
+    ownedItems.forEach(id => {
+      const item = SHOP_ITEMS.find(i => i.id === id);
+      if (item) applyEffect(item.effect);
+    });
+    ownedAdminItems.forEach(id => {
+      const item = ADMIN_ITEMS.find(i => i.id === id);
+      if (item) applyEffect(item.effect);
+    });
+    LIMITED_ITEMS.forEach(item => {
+      const count = limitedBought[item.id] || 0;
+      for (let n = 0; n < count; n++) applyEffect(item.effect);
+    });
+
+    return { quality, waitBonus, xpMult, mysticFlat, streakProtect };
+  }
+
+  // Gear-Boni PLUS die Boni des Gewässers, an dem gerade geangelt wird (waterCode: 'W' oder 'V').
+  function getBonuses(waterCode) {
+    const g = getGearBonuses();
+    if (!waterCode) return g;
+    const def = TILE_DEFS[waterCode];
+    const w = def ? getWater(def.waterId) : null;
+    if (!w) return g;
+    return {
+      quality: g.quality + w.quality,
+      waitBonus: g.waitBonus + w.wait,
+      xpMult: g.xpMult,
+      mysticFlat: g.mysticFlat + w.mysticFlat,
+      streakProtect: g.streakProtect,
+    };
+  }
+
+  function maybeResetStreak() {
+    if (!getGearBonuses().streakProtect) streak = 0;
+  }
+
+  function updateHud() {
+    hudMoney.textContent = fmtMoney(money);
+    hudLevel.textContent = level;
+    hudXp.textContent = Math.floor(xp);
+    hudXpNext.textContent = xpNext;
+    xpBar.style.width = Math.min(100, (xp / xpNext) * 100) + '%';
+    hudRod.textContent = RODS[rodIndex].name;
+    hudBait.textContent = BAITS[baitIndex].name;
+    hudFloat.textContent = FLOATS[floatIndex].name;
+    hudStreak.textContent = streak;
+    let itemCount = ownedItems.size + ownedAdminItems.size;
+    LIMITED_ITEMS.forEach(it => { itemCount += (limitedBought[it.id] || 0); });
+    hudItems.textContent = itemCount;
+    const mysticReady = armed.mysticbait || 0;
+    hudMysticRow.style.display = mysticReady > 0 ? '' : 'none';
+    hudMystic.textContent = mysticReady;
+    hudBoat.textContent = BOATS[ownedBoatLevel].name;
+    saveState();
+  }
+  function addXp(amount) {
+    xp += amount;
+    while (xp >= xpNext) {
+      xp -= xpNext;
+      level++;
+      xpNext = Math.round(xpNext * 1.35);
+      addMessage('⭐ LEVEL UP!', `Du bist jetzt Level ${level}!`, null);
+    }
+    updateHud();
+  }
+
+  function addMessage(tag, body, sub, rarityClass) {
+    const div = document.createElement('div');
+    div.className = 'msg' + (rarityClass ? ' ' + rarityClass : '');
+    div.innerHTML =
+      (tag ? `<div class="tag">${tag}</div>` : '') +
+      `<div class="body">${body}</div>` +
+      (sub ? `<div class="sub">${sub}</div>` : '');
+    feedWrap.appendChild(div);
+    feedWrap.scrollTop = feedWrap.scrollHeight;
+  }
+
+  function setButtons(list) {
+    buttonsEl.innerHTML = '';
+    list.forEach(b => {
+      const btn = document.createElement('button');
+      btn.textContent = b.label;
+      if (b.cls) btn.classList.add(b.cls);
+      if (b.disabled) btn.disabled = true;
+      btn.addEventListener('click', b.onClick);
+      buttonsEl.appendChild(btn);
+    });
+  }
+  function pickBucket(waitSeconds) {
+    if (waitSeconds < 10) return '2-9';
+    if (waitSeconds < 20) return '10-19';
+    if (waitSeconds < 30) return '20-29';
+    return '30+';
+  }
+
+  function weightedRarity(bucket, qualityBonus, mysticFlat) {
+    const base = WAIT_WEIGHTS[bucket];
+    const w = {};
+    for (const r of RARITY) w[r] = base[r];
+    const shift = Math.min(w.common, qualityBonus);
+    w.common -= shift;
+    w.legendary += shift * 0.4;
+    w.mystic += shift * 0.2;
+    w.epic += shift * 0.4;
+    if (mysticFlat) w.mystic += mysticFlat;
+
+    const total = RARITY.reduce((s, r) => s + w[r], 0);
+    let roll = Math.random() * total;
+    for (const r of RARITY) {
+      if (roll < w[r]) return r;
+      roll -= w[r];
+    }
+    return 'common';
+  }
+
+  function pickFish(rarity) {
+    const list = FISH_TABLE[rarity];
+    const base = list[Math.floor(Math.random() * list.length)];
+    const jitter = rarity === 'mystic' ? 1 : (0.85 + Math.random() * 0.3);
+    return { name: base.name, value: base.value * jitter };
+  }
+
+  // ============================ GAME LOGIC: WARTEZEIT ============================
+
+  function randomWaitSeconds(waterCode) {
+    const r = Math.random();
+    let wait;
+    if (r < 0.5) wait = 2 + Math.random() * 7;
+    else if (r < 0.8) wait = 10 + Math.random() * 9;
+    else if (r < 0.95) wait = 20 + Math.random() * 9;
+    else wait = 30 + Math.random() * 5;
+    wait += getBonuses(waterCode).waitBonus;
+    return Math.max(2, Math.round(wait));
+  }
+
+  // ============================ KARTE: BEWEGUNG ============================
+
+  const MOVE_TICK_MS = 150; // Wiederholrate, während eine Richtung gehalten wird
+  const SLIDE_SPEED = 0.16; // Anteil einer Kachel, die pro Frame zurückgelegt wird
+
+  function tileAt(col, row) {
+    if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return 'T';
+    return mapGrid[row][col];
+  }
+
+  function uiBlocked() {
+    return busy
+      || modalOverlay.classList.contains('show')
+      || adminOverlay.classList.contains('show')
+      || qteOverlay.classList.contains('show');
+  }
+
+  function attemptStep(dir) {
+    if (uiBlocked()) return;
+    playerDir = dir;
+    if (isMoving) return;
+    let tc = playerCol, tr = playerRow;
+    if (dir === 'up') tr--;
+    else if (dir === 'down') tr++;
+    else if (dir === 'left') tc--;
+    else if (dir === 'right') tc++;
+
+    const code = tileAt(tc, tr);
+    const def = TILE_DEFS[code];
+    if (def.kind === 'door') {
+      enterBuilding(def.building);
+      return;
+    }
+    if (!def.walkable) return; // Baum/Wand/Wasser blockiert
+
+    moveFromCol = playerCol; moveFromRow = playerRow;
+    moveToCol = tc; moveToRow = tr;
+    isMoving = true;
+    moveProgress = 0;
+  }
+
+  function currentHeldDir() {
+    if (heldDirs[lastDir]) return lastDir;
+    return ['down', 'up', 'left', 'right'].find(d => heldDirs[d]) || null;
+  }
+
+  function pressDir(dir) { lastDir = dir; heldDirs[dir] = true; attemptStep(dir); }
+  function releaseDir(dir) { heldDirs[dir] = false; }
+
+  setInterval(() => {
+    if (uiBlocked() || isMoving) return;
+    const d = currentHeldDir();
+    if (d) attemptStep(d);
+  }, MOVE_TICK_MS);
+
+  function updateMovement() {
+    if (isMoving) {
+      moveProgress += SLIDE_SPEED;
+      if (moveProgress >= 1) {
+        moveProgress = 1;
+        playerCol = moveToCol; playerRow = moveToRow;
+        isMoving = false;
+        refreshActions();
+        saveState();
+      }
+    }
+    const fromX = moveFromCol * TILE + TILE / 2, fromY = moveFromRow * TILE + TILE / 2;
+    const toX = moveToCol * TILE + TILE / 2, toY = moveToRow * TILE + TILE / 2;
+    if (isMoving) {
+      playerPixelX = fromX + (toX - fromX) * moveProgress;
+      playerPixelY = fromY + (toY - fromY) * moveProgress;
+    } else {
+      playerPixelX = playerCol * TILE + TILE / 2;
+      playerPixelY = playerRow * TILE + TILE / 2;
+    }
+  }
+
+  // ---- Eingabe: D-Pad (Touch/Maus) ----
+  ['up', 'down', 'left', 'right'].forEach(dir => {
+    const btn = document.getElementById('dpad-' + dir);
+    btn.addEventListener('pointerdown', (e) => { e.preventDefault(); pressDir(dir); });
+    btn.addEventListener('pointerup', () => releaseDir(dir));
+    btn.addEventListener('pointerleave', () => releaseDir(dir));
+    btn.addEventListener('pointercancel', () => releaseDir(dir));
+  });
+
+  // ---- Eingabe: Tastatur (Pfeiltasten/WASD) ----
+  const KEY_DIR = {
+    ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+    w: 'up', a: 'left', s: 'down', d: 'right', W: 'up', A: 'left', S: 'down', D: 'right'
+  };
+  window.addEventListener('keydown', (e) => {
+    const dir = KEY_DIR[e.key];
+    if (!dir) return;
+    if (!e.repeat) pressDir(dir);
+    e.preventDefault();
+  });
+  window.addEventListener('keyup', (e) => {
+    const dir = KEY_DIR[e.key];
+    if (dir) releaseDir(dir);
+  });
+
+  // ============================ RENDERING ============================
+
+  const canvas = document.getElementById('world');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const W = canvas.width, H = canvas.height;
+
+  function drawMap() {
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        const code = mapGrid[y][x];
+        const def = TILE_DEFS[code];
+        const px = x * TILE, py = y * TILE;
+
+        if (def.kind === 'grass') {
+          ctx.fillStyle = ((x + y) % 2 === 0) ? '#5fae4a' : '#569f43';
+          ctx.fillRect(px, py, TILE, TILE);
+        } else if (def.kind === 'tree') {
+          ctx.fillStyle = '#3a6b2f';
+          ctx.fillRect(px, py, TILE, TILE);
+          ctx.fillStyle = '#2c5423';
+          ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+        } else if (def.kind === 'water') {
+          ctx.fillStyle = def.waterId === 'ufer' ? '#6fc7f2' : '#3f8fce';
+          ctx.fillRect(px, py, TILE, TILE);
+          ctx.fillStyle = 'rgba(255,255,255,0.25)';
+          const off = Math.floor((waveT * 0.3 + x * 5 + y * 3) % (TILE * 2));
+          if (off < TILE) ctx.fillRect(px, py + off, TILE, 1);
+        } else if (def.kind === 'wall') {
+          ctx.fillStyle = def.color;
+          ctx.fillRect(px, py, TILE, TILE);
+          ctx.fillStyle = 'rgba(0,0,0,0.3)';
+          ctx.fillRect(px, py, TILE, 3);
+          ctx.fillStyle = 'rgba(255,255,255,0.12)';
+          ctx.fillRect(px, py + TILE - 2, TILE, 2);
+        } else if (def.kind === 'door') {
+          ctx.fillStyle = '#5a3d1e';
+          ctx.fillRect(px + 2, py, TILE - 4, TILE);
+          ctx.fillStyle = '#e8c987';
+          ctx.fillRect(px + TILE - 6, py + TILE / 2, 2, 2);
+        }
+      }
+    }
+
+    // Gebäude-Icons über den Türen (Emoji statt Bild-Assets)
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    Object.keys(BUILDINGS).forEach(id => {
+      const pos = doorTiles[id];
+      if (!pos) return;
+      ctx.fillText(BUILDINGS[id].icon, pos.x * TILE + TILE / 2, pos.y * TILE - 3);
+    });
+  }
+
+  function drawPlayer() {
+    const x = playerPixelX, y = playerPixelY;
+    const shirt = APPEARANCE.shirt.options[appearanceIndex.shirt].color;
+    const hose = APPEARANCE.hose.options[appearanceIndex.hose].color;
+    const hutColor = APPEARANCE.hut.options[appearanceIndex.hut].color;
+    const glasses = APPEARANCE.brille.options[appearanceIndex.brille].color;
+    const legOffset = (isMoving && Math.floor(waveT / 6) % 2 === 0) ? 1 : 0;
+
+    // Schatten
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 6, 5, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Beine (wechseln beim Laufen leicht die Höhe -> einfache Lauf-Animation)
+    ctx.fillStyle = hose;
+    ctx.fillRect(x - 3, y + 1 + legOffset, 2, 4 - legOffset);
+    ctx.fillRect(x + 1, y + 1 + (1 - legOffset), 2, 4 - (1 - legOffset));
+
+    // Körper
+    ctx.fillStyle = shirt;
+    ctx.fillRect(x - 4, y - 4, 8, 6);
+
+    // Kopf
+    ctx.fillStyle = '#f2c79c';
+    ctx.fillRect(x - 3, y - 9, 6, 5);
+
+    // Gesicht je nach Blickrichtung
+    if (playerDir === 'down') {
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 2, y - 7, 1, 1);
+      ctx.fillRect(x + 1, y - 7, 1, 1);
+      if (glasses) { ctx.fillStyle = glasses; ctx.fillRect(x - 2, y - 7, 4, 1); }
+    } else if (playerDir === 'left') {
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 3, y - 7, 1, 1);
+      if (glasses) { ctx.fillStyle = glasses; ctx.fillRect(x - 3, y - 7, 2, 1); }
+    } else if (playerDir === 'right') {
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x + 2, y - 7, 1, 1);
+      if (glasses) { ctx.fillStyle = glasses; ctx.fillRect(x + 1, y - 7, 2, 1); }
+    } // 'up' -> Hinterkopf, kein Gesicht sichtbar
+
+    // Hut
+    ctx.fillStyle = hutColor;
+    ctx.fillRect(x - 4, y - 10, 8, 2);
+    if (playerDir !== 'up') ctx.fillRect(x - 2, y - 11, 4, 1);
+  }
+
+  function render() {
+    waveT += 1;
+    updateMovement();
+    ctx.clearRect(0, 0, W, H);
+    drawMap();
+    drawPlayer();
+    requestAnimationFrame(render);
+  }
+
+  // ============================ ORT / KONTEXT-AKTIONEN ============================
+
+  function getAdjacentWaterCode() {
+    const neighbors = [
+      [playerCol, playerRow - 1], [playerCol, playerRow + 1],
+      [playerCol - 1, playerRow], [playerCol + 1, playerRow],
+    ];
+    for (const [c, r] of neighbors) {
+      const code = tileAt(c, r);
+      if (TILE_DEFS[code] && TILE_DEFS[code].kind === 'water') return code;
+    }
+    return null;
+  }
+
+  function updateLocationLabel() {
+    const waterCode = getAdjacentWaterCode();
+    let label = 'Dorfplatz';
+    if (waterCode) {
+      label = TILE_DEFS[waterCode].label;
+    } else {
+      const facing = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[playerDir];
+      const code = tileAt(playerCol + facing[0], playerRow + facing[1]);
+      if (TILE_DEFS[code] && TILE_DEFS[code].kind === 'door') {
+        label = BUILDINGS[TILE_DEFS[code].building].title;
+      }
+    }
+    hudLocation.textContent = label;
+  }
+
+  // Baut die untere Aktionsleiste passend zum aktuellen Ort neu auf.
+  // Reihenfolge: kontextabhängige Angeln-Aktion zuerst, dann feste Aktionen.
+  function refreshActions() {
+    updateLocationLabel();
+    if (busy) return; // während des Angelns übernimmt backToMain() die Buttons
+
+    const list = [];
+    const waterCode = getAdjacentWaterCode();
+    if (waterCode) {
+      const water = getWater(TILE_DEFS[waterCode].waterId);
+      if (ownedBoatLevel >= water.requiredBoat) {
+        list.push({ label: '🎣 Angeln', cls: 'primary', onClick: () => startFishing(waterCode) });
+      } else {
+        list.push({ label: `🔒 Braucht ${BOATS[water.requiredBoat].name}`, disabled: true, onClick: () => {} });
+      }
+    }
+    list.push({ label: '🧰 Ausrüstung', onClick: showEquipMenu });
+    list.push({ label: '🎒 Inventar', onClick: showInventory });
+    if (inventory.length) list.push({ label: '💰 Verkaufen', cls: 'danger', onClick: sellAll });
+    setButtons(list);
+  }
+
+  function backToMain() {
+    if (busy) {
+      setButtons([{ label: '🎣 Du angelst...', cls: 'primary', disabled: true, onClick: () => {} }]);
+    } else {
+      refreshActions();
+    }
+  }
+
+  function enterBuilding(buildingId) {
+    const cfg = BUILDINGS[buildingId];
+    if (!cfg) return;
+    showShop(cfg.tabs[0], cfg.tabs, cfg.title);
+  }
+
+  // ============================ SHOP ============================
+
+  function showShop(tab, allowedTabs, title) {
+    if (allowedTabs) { shopAllowedTabs = allowedTabs; shopTitle = title; }
+    shopTab = (tab && shopAllowedTabs.includes(tab)) ? tab : shopAllowedTabs[0];
+    modalTitle.textContent = shopTitle;
+
+    const tabsHtml = `<div id="shopTabs">${
+      shopAllowedTabs.map(t => `<button data-tab="${t}" class="${shopTab === t ? 'active' : ''}">${TAB_META[t].label}</button>`).join('')
+    }</div>`;
+
+    let bodyHtml = '';
+
+    if (shopTab === 'ruten') {
+      bodyHtml = RODS.map((r, i) => {
+        const owned = ownedRods.has(i);
+        const afford = money >= r.price;
+        return `
+        <div class="shop-row">
+          <div class="shop-head">
+            <span>${r.name}</span>
+            <span>${owned ? '' : fmtMoney(r.price)}</span>
+          </div>
+          <div class="shop-desc">Wartezeit-Bonus: ${r.waitBonus}s • Qualitäts-Bonus: +${r.qualityBonus}</div>
+          ${owned ? '<span class="shop-owned">✔ Im Besitz</span>' : `<button data-kind="rod" data-idx="${i}" ${afford ? '' : 'disabled'}>Kaufen</button>`}
+        </div>`;
+      }).join('');
+    } else if (shopTab === 'koeder') {
+      bodyHtml = BAITS.map((b, i) => {
+        const owned = ownedBaits.has(i);
+        const afford = money >= b.price;
+        return `
+        <div class="shop-row">
+          <div class="shop-head">
+            <span>${b.name}</span>
+            <span>${owned ? '' : fmtMoney(b.price)}</span>
+          </div>
+          <div class="shop-desc">Qualitäts-Bonus: +${b.qualityBonus}</div>
+          ${owned ? '<span class="shop-owned">✔ Im Besitz</span>' : `<button data-kind="bait" data-idx="${i}" ${afford ? '' : 'disabled'}>Kaufen</button>`}
+        </div>`;
+      }).join('');
+    } else if (shopTab === 'schwimmer') {
+      bodyHtml = FLOATS.map((f, i) => {
+        const owned = ownedFloats.has(i);
+        const afford = money >= f.price;
+        return `
+        <div class="shop-row">
+          <div class="shop-head">
+            <span>${f.name}</span>
+            <span>${owned ? '' : fmtMoney(f.price)}</span>
+          </div>
+          <div class="shop-desc">Rein kosmetisch – ändert nur die Farbe deines Schwimmers.</div>
+          ${owned ? '<span class="shop-owned">✔ Im Besitz</span>' : `<button data-kind="float" data-idx="${i}" ${afford ? '' : 'disabled'}>Kaufen</button>`}
+        </div>`;
+      }).join('');
+    } else if (shopTab === 'boote') {
+      bodyHtml = BOATS.map((b, i) => {
+        const owned = ownedBoatLevel >= i;
+        const afford = money >= b.price;
+        const gateNote = i === 0
+          ? 'Zugang nur zum Dorfteich.'
+          : (i === 1 ? 'Schaltet das Flussufer zum Angeln frei!' : 'Weitere Ausbaustufe für später.');
+        return `
+        <div class="shop-row">
+          <div class="shop-head">
+            <span>${b.name}</span>
+            <span>${owned ? '' : fmtMoney(b.price)}</span>
+          </div>
+          <div class="shop-desc">+${b.qualityBonus || 0} Qualität, ${b.waitBonus || 0}s Wartezeit • ${gateNote}</div>
+          ${owned ? '<span class="shop-owned">✔ Im Besitz</span>' : `<button data-kind="boat" data-idx="${i}" ${afford ? '' : 'disabled'}>Kaufen</button>`}
+        </div>`;
+      }).join('');
+    } else if (shopTab === 'items') {
+      bodyHtml = SHOP_ITEMS.map(item => {
+        const owned = ownedItems.has(item.id);
+        const afford = money >= item.price;
+        return `
+        <div class="shop-row">
+          <div class="shop-head">
+            <span>${item.name}</span>
+            <span>${owned ? '' : fmtMoney(item.price)}</span>
+          </div>
+          <div class="shop-desc">${item.desc}</div>
+          ${owned ? '<span class="shop-owned">✔ Im Besitz</span>' : `<button data-kind="item" data-idx="${item.id}" ${afford ? '' : 'disabled'}>Kaufen</button>`}
+        </div>`;
+      }).join('');
+    } else if (shopTab === 'limitiert') {
+      bodyHtml = LIMITED_ITEMS.map(item => {
+        const bought = limitedBought[item.id] || 0;
+        const remaining = item.maxStock - bought;
+        const afford = money >= item.price;
+        const soldOut = remaining <= 0;
+        return `
+        <div class="shop-row">
+          <div class="shop-head">
+            <span>${item.name}</span>
+            <span>${soldOut ? '' : fmtMoney(item.price)}</span>
+          </div>
+          <div class="shop-desc">${item.desc}<br>Verfügbar: ${remaining} von ${item.maxStock} • Du besitzt: ${bought}</div>
+          ${soldOut
+            ? '<span class="shop-locked">❌ Ausverkauft</span>'
+            : `<button data-kind="limited" data-idx="${item.id}" ${afford ? '' : 'disabled'}>Kaufen</button>`
+          }
+        </div>`;
+      }).join('');
+    } else if (shopTab === 'outfit') {
+      bodyHtml = Object.keys(APPEARANCE).map(kind => {
+        const cat = APPEARANCE[kind];
+        const rows = cat.options.map((o, i) => {
+          const owned = ownedAppearance[kind].has(i);
+          const afford = money >= o.price;
+          return `
+          <div class="shop-row">
+            <div class="shop-head">
+              <span>${o.name}</span>
+              <span>${owned ? '' : fmtMoney(o.price)}</span>
+            </div>
+            <div class="shop-desc">Rein kosmetisch – ändert die Farbe deines Charakters.</div>
+            ${owned ? '<span class="shop-owned">✔ Im Besitz</span>' : `<button data-kind="outfit" data-cat="${kind}" data-idx="${i}" ${afford ? '' : 'disabled'}>Kaufen</button>`}
+          </div>`;
+        }).join('');
+        return `<div style="margin:14px 0 6px; color:#9fc7e0; font-size:9px;">${cat.icon} ${cat.label.toUpperCase()}</div>${rows}`;
+      }).join('');
+    }
+
+    modalBody.innerHTML = `<div id="shopMoney">Verfügbares Geld: ${fmtMoney(money)}</div>${tabsHtml}${bodyHtml}`;
+
+    modalBody.querySelectorAll('#shopTabs button').forEach(btn => {
+      btn.addEventListener('click', () => showShop(btn.dataset.tab));
+    });
+
+    modalBody.querySelectorAll('button[data-kind]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const kind = btn.dataset.kind;
+        if (kind === 'rod') {
+          const i = parseInt(btn.dataset.idx, 10);
+          if (ownedRods.has(i) || money < RODS[i].price) return;
+          money -= RODS[i].price;
+          ownedRods.add(i);
+          addMessage('🛍️ Shop', `Du hast die <b>${RODS[i].name}</b> gekauft!`, 'Ausrüsten kannst du sie über "Ausrüstung".');
+        } else if (kind === 'bait') {
+          const i = parseInt(btn.dataset.idx, 10);
+          if (ownedBaits.has(i) || money < BAITS[i].price) return;
+          money -= BAITS[i].price;
+          ownedBaits.add(i);
+          addMessage('🛍️ Shop', `Du hast <b>${BAITS[i].name}</b> gekauft!`, 'Ausrüsten kannst du ihn über "Ausrüstung".');
+        } else if (kind === 'float') {
+          const i = parseInt(btn.dataset.idx, 10);
+          if (ownedFloats.has(i) || money < FLOATS[i].price) return;
+          money -= FLOATS[i].price;
+          ownedFloats.add(i);
+          addMessage('🛍️ Shop', `Du hast den <b>${FLOATS[i].name}</b> gekauft!`, 'Ausrüsten kannst du ihn über "Ausrüstung".');
+        } else if (kind === 'boat') {
+          const i = parseInt(btn.dataset.idx, 10);
+          if (ownedBoatLevel >= i || money < BOATS[i].price) return;
+          money -= BOATS[i].price;
+          ownedBoatLevel = i;
+          addMessage('🛍️ Shop', `Du hast das <b>${BOATS[i].name}</b> gekauft!`, null);
+        } else if (kind === 'item') {
+          const id = btn.dataset.idx;
+          const item = SHOP_ITEMS.find(x => x.id === id);
+          if (ownedItems.has(id) || money < item.price) return;
+          money -= item.price;
+          ownedItems.add(id);
+          addMessage('🛍️ Shop', `Du hast <b>${item.name}</b> gekauft!`, item.desc);
+        } else if (kind === 'limited') {
+          const id = btn.dataset.idx;
+          const item = LIMITED_ITEMS.find(x => x.id === id);
+          const bought = limitedBought[id] || 0;
+          if (bought >= item.maxStock || money < item.price) return;
+          money -= item.price;
+          limitedBought[id] = bought + 1;
+          const remaining = item.maxStock - limitedBought[id];
+          addMessage('🌟 Limitiertes Item', `Du hast <b>${item.name}</b> gekauft!`, `Noch ${remaining} von ${item.maxStock} verfügbar.`);
+        } else if (kind === 'outfit') {
+          const cat = btn.dataset.cat;
+          const i = parseInt(btn.dataset.idx, 10);
+          const opt = APPEARANCE[cat].options[i];
+          if (ownedAppearance[cat].has(i) || money < opt.price) return;
+          money -= opt.price;
+          ownedAppearance[cat].add(i);
+          addMessage('🛍️ Shop', `Du hast <b>${opt.name}</b> gekauft!`, 'Ausrüsten kannst du es über "Ausrüstung".');
+        }
+        updateHud();
+        showShop(shopTab);
+      });
+    });
+
+    modalOverlay.classList.add('show');
+  }
+
+  // ============================ AUSRÜSTUNG (Ausrüsten von bereits Gekauftem) ============================
+
+  function showEquipMenu() {
+    setButtons([
+      { label: '🎯 Rute wechseln', onClick: showRodMenu },
+      { label: '🪱 Köder wechseln', onClick: showBaitMenu },
+      { label: '🎈 Schwimmer wechseln', onClick: showFloatMenu },
+      { label: '👤 Aussehen ändern', onClick: showAppearanceCategoryMenu },
+      { label: '⬅ Zurück', onClick: backToMain },
+    ]);
+  }
+
+  function showRodMenu() {
+    const owned = RODS.map((r, i) => i).filter(i => ownedRods.has(i));
+    setButtons(owned.map(i => ({
+      label: RODS[i].name + (i === rodIndex ? ' (aktiv)' : ''),
+      disabled: i === rodIndex,
+      onClick: () => {
+        rodIndex = i;
+        maybeResetStreak();
+        updateHud();
+        addMessage('🎯 Ausrüstung', `Du hast die <b>${RODS[i].name}</b> ausgerüstet.`, null);
+        showEquipMenu();
+      }
+    })).concat([
+      { label: '⬅ Zurück', onClick: showEquipMenu }
+    ]));
+  }
+
+  function showBaitMenu() {
+    const owned = BAITS.map((b, i) => i).filter(i => ownedBaits.has(i));
+    setButtons(owned.map(i => ({
+      label: BAITS[i].name + (i === baitIndex ? ' (aktiv)' : ''),
+      disabled: i === baitIndex,
+      onClick: () => {
+        baitIndex = i;
+        maybeResetStreak();
+        updateHud();
+        addMessage('🪱 Köder', `Du köderst jetzt mit <b>${BAITS[i].name}</b>.`, null);
+        showEquipMenu();
+      }
+    })).concat([
+      { label: '⬅ Zurück', onClick: showEquipMenu }
+    ]));
+  }
+
+  function showFloatMenu() {
+    const owned = FLOATS.map((f, i) => i).filter(i => ownedFloats.has(i));
+    setButtons(owned.map(i => ({
+      label: FLOATS[i].name + (i === floatIndex ? ' (aktiv)' : ''),
+      disabled: i === floatIndex,
+      onClick: () => {
+        floatIndex = i;
+        updateHud();
+        addMessage('🎈 Schwimmer', `Du benutzt jetzt: <b>${FLOATS[i].name}</b>.`, null);
+        showEquipMenu();
+      }
+    })).concat([
+      { label: '⬅ Zurück', onClick: showEquipMenu }
+    ]));
+  }
+
+  function showAppearanceMenu(kind) {
+    const cat = APPEARANCE[kind];
+    const owned = cat.options.map((o, i) => i).filter(i => ownedAppearance[kind].has(i));
+    setButtons(owned.map(i => ({
+      label: cat.options[i].name + (i === appearanceIndex[kind] ? ' (aktiv)' : ''),
+      disabled: i === appearanceIndex[kind],
+      onClick: () => {
+        appearanceIndex[kind] = i;
+        updateHud();
+        addMessage(`${cat.icon} ${cat.label}`, `Du trägst jetzt: <b>${cat.options[i].name}</b>.`, null);
+        showAppearanceCategoryMenu();
+      }
+    })).concat([
+      { label: '⬅ Zurück', onClick: showAppearanceCategoryMenu }
+    ]));
+  }
+
+  function showAppearanceCategoryMenu() {
+    setButtons([
+      { label: '🎩 Hut wechseln', onClick: () => showAppearanceMenu('hut') },
+      { label: '👕 Shirt wechseln', onClick: () => showAppearanceMenu('shirt') },
+      { label: '👖 Hose wechseln', onClick: () => showAppearanceMenu('hose') },
+      { label: '🕶️ Brille wechseln', onClick: () => showAppearanceMenu('brille') },
+      { label: '⬅ Zurück', onClick: showEquipMenu },
+    ]);
+  }
+
+  // ============================ ANGELN: WURF -> WARTEN -> BISS ============================
+
+  function startFishing(waterCode) {
+    if (busy || uiBlocked()) return;
+    busy = true;
+    backToMain();
+    addMessage('🎣', 'Du wirfst die Angel aus...', null);
+
+    setTimeout(() => {
+      const waitSeconds = randomWaitSeconds(waterCode);
+      addMessage('🎣', `Du wartest auf einen Biss... (${waitSeconds}s)`, null);
+
+      setTimeout(() => {
+        const bonuses = getBonuses(waterCode);
+        const usingMysticBait = (armed.mysticbait || 0) > 0;
+
+        if (usingMysticBait) {
+          armed.mysticbait -= 1;
+          addMessage('🌟 Mystik-Köder aktiviert!', 'Garantierter mystischer Fang – kein Zappeln nötig!', null);
+          resolveCatch({ rarity: 'mystic', bonuses, waitSeconds });
+          return;
+        }
+
+        const bucket = pickBucket(waitSeconds);
+        const rarity = weightedRarity(bucket, bonuses.quality, bonuses.mysticFlat);
+
+        let tensionMsg = null;
+        if (bucket === '10-19') tensionMsg = ['🐟', 'Etwas zieht an der Leine...'];
+        else if (bucket === '20-29') tensionMsg = ['🦈', 'ETWAS GRÖSSERES! Die Leine spannt sich!'];
+        else if (bucket === '30+') tensionMsg = ['🌊', 'Die Rute biegt sich bis zum Anschlag!'];
+
+        const openQte = () => startQte(rarity, waterCode, bonuses, waitSeconds);
+        if (tensionMsg) {
+          addMessage(tensionMsg[0], tensionMsg[1], null);
+          setTimeout(openQte, 900);
+        } else {
+          openQte();
+        }
+      }, waitSeconds * 1000);
+    }, 450);
+  }
+
+  function resolveCatch({ rarity, bonuses, waitSeconds }) {
+    const fish = pickFish(rarity);
+    const isNew = !discovered.has(fish.name);
+    discovered.add(fish.name);
+    streak++;
+    const multiplier = 1 + 0.01 * (streak + 1);
+    const finalValue = fish.value * multiplier;
+    const gainedXp = Math.max(1, Math.round((finalValue / 100) * bonuses.xpMult));
+
+    inventory.push({ name: fish.name, value: finalValue, rarity });
+    addXp(gainedXp);
+    updateHud();
+
+    const icon = MYSTIC_ICON[fish.name] || RARITY_ICON[rarity] || '🐟';
+    addMessage(
+      null,
+      `${icon} <b>${fish.name} gefangen!</b> (${RARITY_STAR[rarity]} ${RARITY_LABEL[rarity]})`,
+      `Wert: ${fmtMoney(finalValue)} • Biss nach ${waitSeconds}s • Serie: ${streak} (${multiplier.toFixed(2)}×) • +${gainedXp} Angel-XP`,
+      'rare-' + rarity
+    );
+    if (isNew) {
+      addMessage('📖 Neuer Lexikon-Eintrag!', `<b>${fish.name}</b> wurde ins Fisch-Lexikon aufgenommen.`, null);
+    }
+
+    busy = false;
+    backToMain();
+  }
+
+  function failCatch() {
+    maybeResetStreak();
+    addMessage('💦 Verpasst!', 'Der Fisch hat sich losgerissen...', null);
+    updateHud();
+    busy = false;
+    backToMain();
+  }
+
+  // ============================ QUICK-TIME-EVENT (Angel-Minispiel) ============================
+  // Prinzip wie in Stardew Valley: der grüne Fangbalken steigt, solange gehalten wird,
+  // und fällt sonst durch "Schwerkraft". Solange sich der Fisch INNERHALB des Balkens
+  // befindet, füllt sich die Fortschrittsleiste; sonst leert sie sich. 100% = gefangen,
+  // 0% = der Fisch entkommt. Eigene Grafik/eigener Code – keine Original-Assets von Stardew.
+
+  const QTE_TRACK_H = 200; // Höhe des Minispiel-Balkens in Pixeln (muss zur CSS-Höhe passen)
+
+  function startQte(rarity, waterCode, bonuses, waitSeconds) {
+    const base = QTE_DIFFICULTY[rarity];
+    const zoneHeight = Math.min(150, base.zoneHeight + bonuses.quality * 0.8);
+    const fishSpeed = Math.max(0.55, base.fishSpeed - bonuses.quality * 0.006);
+
+    qte = {
+      rarity, waterCode, bonuses, waitSeconds,
+      zoneHeight, fishSpeed,
+      fishJitter: base.fishJitter,
+      fillRate: base.fillRate, drainRate: base.drainRate,
+      fishY: QTE_TRACK_H / 2,
+      fishTarget: Math.random() * QTE_TRACK_H,
+      fishTargetTimer: 0,
+      catchY: QTE_TRACK_H / 2 - zoneHeight / 2,
+      progress: 35,
+      holding: false,
+      timeLeft: 14,
+      lastTime: performance.now(),
+      raf: null,
+    };
+
+    qteZone.style.height = zoneHeight + 'px';
+    qteTitleEl.textContent =
+      rarity === 'mystic' ? '✨ ETWAS MYSTISCHES BEISST AN! ✨' :
+      (rarity === 'legendary' || rarity === 'epic') ? '🦈 ETWAS GROSSES ZIEHT!' :
+      '🐟 Etwas beißt an!';
+
+    qteOverlay.classList.add('show');
+    qte.raf = requestAnimationFrame(qteLoop);
+  }
+
+  function qteLoop(now) {
+    if (!qte) return;
+    const dt = Math.min(0.06, (now - qte.lastTime) / 1000);
+    qte.lastTime = now;
+
+    qte.timeLeft -= dt;
+    qteTimerEl.textContent = 'Zeit: ' + Math.max(0, qte.timeLeft).toFixed(1) + 's';
+
+    qte.fishTargetTimer -= dt;
+    if (qte.fishTargetTimer <= 0) {
+      qte.fishTarget = Math.random() * QTE_TRACK_H;
+      qte.fishTargetTimer = 0.4 + Math.random() * 0.6;
+    }
+    qte.fishY += (qte.fishTarget - qte.fishY) * 0.06 * qte.fishSpeed;
+    qte.fishY += (Math.random() - 0.5) * qte.fishJitter * dt * 10;
+    qte.fishY = Math.max(0, Math.min(QTE_TRACK_H, qte.fishY));
+
+    const riseSpeed = 130, fallSpeed = 95;
+    qte.catchY += (qte.holding ? -riseSpeed : fallSpeed) * dt;
+    qte.catchY = Math.max(0, Math.min(QTE_TRACK_H - qte.zoneHeight, qte.catchY));
+
+    const inZone = qte.fishY >= qte.catchY && qte.fishY <= qte.catchY + qte.zoneHeight;
+    qte.progress += (inZone ? qte.fillRate : -qte.drainRate) * dt;
+    qte.progress = Math.max(0, Math.min(100, qte.progress));
+
+    qteZone.style.top = qte.catchY + 'px';
+    qteFish.style.top = qte.fishY + 'px';
+    qteProgressBar.style.height = qte.progress + '%';
+
+    if (qte.progress >= 100) { finishQte(true); return; }
+    if (qte.timeLeft <= 0 || qte.progress <= 0) { finishQte(false); return; }
+
+    qte.raf = requestAnimationFrame(qteLoop);
+  }
+
+  function finishQte(success) {
+    if (!qte) return;
+    cancelAnimationFrame(qte.raf);
+    const snapshot = qte;
+    qteOverlay.classList.remove('show');
+    qte = null;
+    if (success) {
+      resolveCatch({ rarity: snapshot.rarity, bonuses: snapshot.bonuses, waitSeconds: snapshot.waitSeconds });
+    } else {
+      failCatch();
+    }
+  }
+
+  qteHoldBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (qte) qte.holding = true; });
+  window.addEventListener('pointerup', () => { if (qte) qte.holding = false; });
+  qteHoldBtn.addEventListener('pointerleave', () => { if (qte) qte.holding = false; });
+  window.addEventListener('keydown', (e) => {
+    if (qte && e.code === 'Space') { qte.holding = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (qte && e.code === 'Space') qte.holding = false;
+  });
+  function showInventory(tab) {
+    invTab = tab || invTab;
+    modalTitle.textContent = '🎒 Inventar';
+
+    const tabsHtml = `
+      <div id="shopTabs">
+        <button data-invtab="fische" class="${invTab==='fische'?'active':''}">🐟 Fische</button>
+        <button data-invtab="items" class="${invTab==='items'?'active':''}">🎒 Items</button>
+        <button data-invtab="lexikon" class="${invTab==='lexikon'?'active':''}">📖 Lexikon</button>
+      </div>`;
+
+    let bodyHtml = '';
+    if (invTab === 'fische') {
+      if (!inventory.length) {
+        bodyHtml = '<div class="inv-empty">Noch keine Fische gefangen.</div>';
+      } else {
+        let total = 0;
+        const rows = inventory.map((f, i) => {
+          total += f.value;
+          return `
+          <div class="shop-row">
+            <div class="shop-head">
+              <span class="rare-${f.rarity}">${RARITY_STAR[f.rarity]} ${f.name}</span>
+              <span>${fmtMoney(f.value)}</span>
+            </div>
+            <button data-sell-idx="${i}">💰 Verkaufen</button>
+          </div>`;
+        }).join('');
+        bodyHtml = rows +
+          `<div class="inv-row" style="border:none;font-weight:bold;"><span>Gesamtwert</span><span>${fmtMoney(total)}</span></div>
+           <button id="sellAllBtn" class="danger" style="width:100%;margin-top:6px;">🧺 Alle verkaufen</button>`;
+      }
+    } else if (invTab === 'lexikon') {
+      // ---- Fisch-Lexikon: alle 200+ Arten, entdeckte mit Namen/Wert, unentdeckte als "???" ----
+      let totalCount = 0, foundCount = 0;
+      const sections = RARITY.map(tier => {
+        const list = FISH_TABLE[tier];
+        let sectionFound = 0;
+        const rows = list.map(f => {
+          totalCount++;
+          const isFound = discovered.has(f.name);
+          if (isFound) { foundCount++; sectionFound++; }
+          const icon = isFound ? (MYSTIC_ICON[f.name] || RARITY_ICON[tier] || '🐟') : '❔';
+          const label = isFound ? f.name : '???';
+          const value = isFound ? fmtMoney(f.value) : '???';
+          return `
+          <div class="inv-row" style="${isFound ? '' : 'opacity:0.45;'}">
+            <span>${icon} ${label}</span>
+            <span>${value}</span>
+          </div>`;
+        }).join('');
+        return `
+          <div style="margin:14px 0 4px; color:#9fc7e0; font-size:9px;">
+            ${RARITY_STAR[tier]} ${RARITY_LABEL[tier].toUpperCase()} (${sectionFound}/${list.length})
+          </div>
+          ${rows}`;
+      }).join('');
+
+      bodyHtml = `
+        <div style="text-align:center; margin-bottom:8px; font-size:10px;">
+          Entdeckt: <b style="color:var(--accent);">${foundCount} / ${totalCount}</b>
+        </div>
+        ${sections}
+      `;
+    } else {
+      // ---- Items-Tab: Verbrauchsgegenstände (mit Bestand + Einlösen) und dauerhafte Boni-Items ----
+      const consumableRows = CONSUMABLES.map(item => {
+        const stock = consumables[item.id] || 0;
+        const readyCount = armed[item.id] || 0;
+        return `
+        <div class="shop-row">
+          <div class="shop-head">
+            <span>${item.name}</span>
+            <span>Bestand: <b>${stock}</b></span>
+          </div>
+          <div class="shop-desc">${item.desc}${readyCount > 0 ? `<br><span class="shop-owned">✔ ${readyCount}x eingelöst – wirkt beim nächsten passenden Wurf</span>` : ''}</div>
+          <button data-redeem="${item.id}" ${stock > 0 ? '' : 'disabled'}>Einlösen (nicht verkaufbar)</button>
+        </div>`;
+      }).join('');
+
+      const allBoniItems = SHOP_ITEMS.concat(ADMIN_ITEMS);
+      const ownedBoniItems = allBoniItems.filter(item => ownedItems.has(item.id) || ownedAdminItems.has(item.id));
+      const boniRows = ownedBoniItems.length
+        ? ownedBoniItems.map(item => `
+          <div class="shop-row">
+            <div class="shop-head"><span>${item.name}</span><span class="shop-owned">✔ Aktiv</span></div>
+            <div class="shop-desc">${item.desc}</div>
+          </div>`).join('')
+        : '<div class="inv-empty">Noch keine dauerhaften Items gekauft.</div>';
+
+      bodyHtml = `
+        <div style="margin-bottom:6px; color:#9fc7e0; font-size:9px;">🌟 VERBRAUCHSGEGENSTÄNDE</div>
+        ${consumableRows}
+        <div style="margin:14px 0 6px; color:#9fc7e0; font-size:9px;">✨ DAUERHAFTE ITEMS</div>
+        ${boniRows}
+      `;
+    }
+
+    modalBody.innerHTML = tabsHtml + bodyHtml;
+
+    modalBody.querySelectorAll('[data-invtab]').forEach(btn => {
+      btn.addEventListener('click', () => showInventory(btn.dataset.invtab));
+    });
+    modalBody.querySelectorAll('button[data-sell-idx]').forEach(btn => {
+      btn.addEventListener('click', () => sellOne(parseInt(btn.dataset.sellIdx, 10)));
+    });
+    const sellAllBtn = modalBody.querySelector('#sellAllBtn');
+    if (sellAllBtn) sellAllBtn.addEventListener('click', sellAll);
+    modalBody.querySelectorAll('button[data-redeem]').forEach(btn => {
+      btn.addEventListener('click', () => redeemConsumable(btn.dataset.redeem));
+    });
+
+    modalOverlay.classList.add('show');
+  }
+
+  // ============================ INVENTAR (unverändert aus dem Original übernommen) ============================
+
+  function redeemConsumable(id) {
+    const item = CONSUMABLES.find(x => x.id === id);
+    const stock = consumables[id] || 0;
+    if (!item || stock <= 0) return;
+    consumables[id] = stock - 1;
+    armed[id] = (armed[id] || 0) + 1;
+    addMessage('🌟 Eingelöst', `<b>${item.name}</b> wurde eingelöst und wirkt beim nächsten passenden Wurf.`, `Verbleibender Bestand: ${consumables[id]}`);
+    updateHud();
+    showInventory('items');
+  }
+
+  function sellOne(index) {
+    const fish = inventory[index];
+    if (!fish) return;
+    money += fish.value;
+    inventory.splice(index, 1);
+    addMessage('💰 Verkauft', `Du hast <b>${fish.name}</b> für <b>${fmtMoney(fish.value)}</b> verkauft!`, null);
+    updateHud();
+    if (inventory.length) {
+      showInventory();
+    } else {
+      modalOverlay.classList.remove('show');
+      backToMain();
+    }
+  }
+  function sellAll() {
+    if (!inventory.length) return;
+    const total = inventory.reduce((s, f) => s + f.value, 0);
+    money += total;
+    addMessage('💰 Verkauft', `Du hast ${inventory.length} Fisch(e) für <b>${fmtMoney(total)}</b> verkauft!`, null);
+    inventory = [];
+    updateHud();
+    backToMain();
+  }
+
+  // ============================ START ============================
+
+  const loadResult = loadState();
+  if (loadResult && loadResult.loaded) {
+    if (loadResult.migrated) {
+      addMessage(
+        '💾 Spielstand übernommen!',
+        `Dein alter Spielstand wurde ins RPG übertragen. Geld: <b>${fmtMoney(money)}</b> • Level <b>${level}</b>`,
+        'Lauf einfach los und erkunde das Dorf! Die alte Datei bleibt unabhängig weiter spielbar.'
+      );
+    } else {
+      addMessage(
+        '💾 Spielstand geladen',
+        `Willkommen zurück! Geld: <b>${fmtMoney(money)}</b> • Level <b>${level}</b>`,
+        `Boot: ${BOATS[ownedBoatLevel].name}`
+      );
+    }
+  } else {
+    addMessage(
+      '🎣 Willkommen im Angel-Dorf!',
+      'Lauf mit Pfeiltasten/WASD oder dem Steuerkreuz herum. Angel-Shop, Flidl, Klamottenladen und Boots-Haus warten auf dich – und zwei Gewässer zum Angeln.',
+      null
+    );
+  }
+
+  updateHud();
+  refreshActions();
+  requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
+(bylucky)
