@@ -309,25 +309,27 @@
     gap: 10px;
     align-items: center;
   }
-  #dpad {
+  #joystick {
     position: relative;
-    width: 118px;
-    height: 118px;
+    width: 110px;
+    height: 110px;
     flex-shrink: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #1a3550, #0a1a28);
+    border: 3px solid var(--border);
+    touch-action: none;
   }
-  .dpad-btn {
+  #joystickNub {
     position: absolute;
-    width: 38px;
-    height: 38px;
-    min-height: 38px;
-    padding: 0;
-    font-size: 14px;
+    top: 50%; left: 50%;
+    width: 46px; height: 46px;
+    margin-top: -23px; margin-left: -23px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #6fa8dc, #2f6fa8);
+    border: 3px solid #dff0ff;
     box-shadow: 2px 2px 0 #000;
+    pointer-events: none;
   }
-  .dpad-up { top: 0; left: 40px; }
-  .dpad-down { top: 80px; left: 40px; }
-  .dpad-left { top: 40px; left: 0; }
-  .dpad-right { top: 40px; left: 80px; }
 
   #buttons {
     flex: 1;
@@ -418,6 +420,43 @@
     border-color: #2fae6e;
   }
   #qteHoldBtn:active { background: #1f7548; }
+
+  /* ------------------ Waffen-Schuss-Szene (statt Minispiel bei mystisch + Waffe) ------------------ */
+  #weaponShotOverlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.82);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    z-index: 15;
+  }
+  #weaponShotOverlay.show { display: flex; }
+  #weaponShotBox {
+    background: var(--panel);
+    border: 4px solid var(--border);
+    padding: 22px 14px;
+    width: 100%;
+    max-width: 300px;
+    text-align: center;
+  }
+  #weaponShotTitle { font-size: 11px; color: var(--accent); margin-bottom: 16px; }
+  #weaponShotImg { height: 64px; image-rendering: pixelated; margin-bottom: 10px; }
+  #weaponShotFlash {
+    font-size: 40px;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 0.12s, transform 0.12s;
+  }
+  #weaponShotFlash.show { opacity: 1; transform: scale(1.3); }
+  #weaponShotResult {
+    font-size: 13px;
+    color: var(--legendary, #ffd23f);
+    margin-top: 12px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #weaponShotResult.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -445,15 +484,12 @@
   </div>
 
   <div id="stage">
-    <canvas id="world" width="320" height="224"></canvas>
+    <canvas id="world" width="416" height="288"></canvas>
   </div>
 
   <div id="controls">
-    <div id="dpad">
-      <button id="dpad-up" class="dpad-btn dpad-up" type="button">▲</button>
-      <button id="dpad-left" class="dpad-btn dpad-left" type="button">◀</button>
-      <button id="dpad-right" class="dpad-btn dpad-right" type="button">▶</button>
-      <button id="dpad-down" class="dpad-btn dpad-down" type="button">▼</button>
+    <div id="joystick">
+      <div id="joystickNub"></div>
     </div>
     <div id="buttons"></div>
   </div>
@@ -499,8 +535,38 @@
   </div>
 </div>
 
+<div id="weaponShotOverlay">
+  <div id="weaponShotBox">
+    <div id="weaponShotTitle">🔫 Ein mystischer Fisch springt aus dem Wasser!</div>
+    <img id="weaponShotImg" src="" alt="Waffe">
+    <div id="weaponShotFlash">💥</div>
+    <div id="weaponShotResult">TREFFER!</div>
+  </div>
+</div>
+
 <script>
 (function(){
+  // ======================================================================
+  // INHALTSVERZEICHNIS (per Strg+F nach der Überschrift in GROSSBUCHSTABEN suchen)
+  //  1. DATEN              – Fische, Ruten, Köder, Boote, Shop-/Admin-Items, ...
+  //  2. NEUE DATEN FÜR DIE RPG-VERSION – Schwimmer, Outfits, Limitierte Items,
+  //                          QTE-Schwierigkeit, Dorf-Karte, Gebäude, Promo-Codes
+  //  3. STATE              – alle veränderlichen Spielvariablen
+  //  4. DOM                – Element-Referenzen + fmtMoney
+  //  5. Speichern / Laden  – localStorage inkl. Migration vom alten Spielstand
+  //  6. Admin-Konsole      – geheime Codes zum Testen
+  //  7. BONI               – Ausrüstungs- und Gewässer-Boni
+  //  8. GAME LOGIC         – Wartezeit, Seltenheit würfeln, Fisch auswählen
+  //  9. KARTE: BEWEGUNG    – Joystick, Tastatur, Kollision, Boot-auf-Wasser
+  // 10. RENDERING          – Karte, Gebäude, Charakter, Boot
+  // 11. ORT / KONTEXT-AKTIONEN – Aktionsleiste, Standort-Anzeige
+  // 12. SHOP               – alle Kauf-Kategorien
+  // 13. AUSRÜSTUNG         – Ausrüsten von bereits Gekauftem
+  // 14. ANGELN + QUICK-TIME-EVENT – Wurf, Warten, Minispiel, Fang/Fehlschlag
+  // 15. INVENTAR           – Fische, Items, Lexikon, Promo-Codes
+  // 16. START              – Spiel initialisieren
+  // ======================================================================
+
   // ============================ DATEN (unverändert aus dem Original übernommen) ============================
 
   const RARITY = ['common','uncommon','rare','epic','legendary','mystic'];
@@ -776,6 +842,20 @@
     }
   })();
 
+  // Waffen-Ruten: rein optische/Statistik-Alternative zu den normalen Ruten. Bei einem
+  // MYSTISCHEN Fang wird statt des Zappel-Minispiels eine kurze Schuss-Animation gezeigt.
+  const WEAPON_RODS = [
+    { name: '🔫 Alte Holz-AK', price: 2500000, waitBonus: -6, qualityBonus: 12, isWeapon: true,
+      img: 'data:image/png;base64,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' },
+    { name: '🔫 Verzierte Holz-AK', price: 3000000, waitBonus: -6, qualityBonus: 14, isWeapon: true,
+      img: 'data:image/png;base64,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' },
+    { name: '🔫 Taktisches Sturmgewehr', price: 4500000, waitBonus: -8, qualityBonus: 18, isWeapon: true,
+      img: 'data:image/png;base64,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' },
+    { name: '🔫 Schwarzes Sturmgewehr', price: 5500000, waitBonus: -8, qualityBonus: 20, isWeapon: true,
+      img: 'data:image/png;base64,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' },
+  ];
+  RODS.push(...WEAPON_RODS);
+
   const BAITS = [
     { name: 'Wurm',          price: 0,       qualityBonus: 0 },
     { name: 'Kunstköder',    price: 15000,   qualityBonus: 3 },
@@ -851,6 +931,21 @@
       desc: '+10 Qualitäts-Bonus für richtig große Fänge – dafür +3s Wartezeit, weil das Netz schwer zu handhaben ist.',
       effect: { quality: 10, wait: 3 }
     },
+    {
+      id: 'lucky_charm', name: '🍀 Glücksbringer', price: 300000,
+      desc: '+3 Qualitäts-Bonus, ganz ohne Nachteil.',
+      effect: { quality: 3 }
+    },
+    {
+      id: 'quick_reel', name: '⚡ Schnellrolle', price: 250000,
+      desc: 'Verkürzt die Wartezeit um weitere 2 Sekunden.',
+      effect: { wait: -2 }
+    },
+    {
+      id: 'xp_journal', name: '📔 Angeltagebuch', price: 400000,
+      desc: '+15% Angel-XP – zusätzlich zu anderen XP-Boni.',
+      effect: { xpMult: 0.15 }
+    },
   ];
 
   // ---- 54 zusätzliche Shop-Trinkets, deterministisch generiert (nicht zufällig!) ----
@@ -908,6 +1003,9 @@
     { id: 'admin_voidnetz',          name: '🕳️ Void-Netz (Admin)',            desc: 'Riesiger Qualitäts-Bonus, aber langsamer.', effect: { quality: 30, wait: 10 } },
     { id: 'admin_sturmrute',         name: '⚡ Sturmrute (Admin)',             desc: 'Schnell UND besser.', effect: { wait: -6, quality: 8 } },
     { id: 'admin_goldwaage',         name: '⚖️ Goldwaage (Admin)',             desc: 'Mehr XP und etwas bessere Qualität.', effect: { xpMult: 0.5, quality: 5 } },
+    { id: 'admin_sternenstaub',      name: '✨ Sternenstaub-Amulett (Admin)',  desc: 'Solider Qualitäts- und XP-Bonus.', effect: { quality: 12, xpMult: 0.1 } },
+    { id: 'admin_tiefenruf',         name: '🌊 Ruf der Tiefe (Admin)',         desc: 'Direkter Mystisch-Bonus plus Wartezeit-Verkürzung.', effect: { mysticFlat: 3, wait: -5 } },
+    { id: 'admin_unzerbrechlich',    name: '🛡️ Unzerbrechliche Serie (Admin)', desc: 'Die Fang-Serie kann nie mehr abbrechen.', effect: { streakProtect: true } },
   ];
 
   // Verbrauchsgegenstände: nach Kauf im Bestand, werden bei Benutzung verbraucht (nicht dauerhaft wie SHOP_ITEMS)
@@ -968,6 +1066,15 @@
         { name: 'Diamant-Brille',  price: 200000, color: '#e0f7ff' },
       ]
     },
+    schuh: {
+      label: 'Schuhe', icon: '👟',
+      options: [
+        { name: 'Standard-Schuhe', price: 0,      color: '#3a2a1a' },
+        { name: 'Weiße Sneaker',   price: 20000,  color: '#e8e8e8' },
+        { name: 'Rote Stiefel',    price: 20000,  color: '#8a2c2c' },
+        { name: 'Goldene Schuhe',  price: 100000, color: '#d4af37' },
+      ]
+    },
   };
 
   // Begrenzt verfügbare Items: feste Stückzahl (maxStock) im ganzen Spiel.
@@ -984,6 +1091,17 @@
       desc: '+1 Punkt auf die Mystisch-Chance pro Stück. Nur 2 Stück verfügbar!',
       effect: { mysticFlat: 1 }, maxStock: 2
     },
+  ];
+
+  // Unternehmen: liefern passives Einkommen in Echtzeit (auch offline), unabhängig vom Angeln.
+  // Man kauft sie einmal im Unternehmen-Gebäude und holt das angesammelte Geld dort wieder ab.
+  // MAX_HOURS deckelt die Ansammlung, damit langes Offline-Sein nicht zu unendlich Geld führt.
+  const BUSINESS_MAX_HOURS = 12;
+  const BUSINESSES = [
+    { id: 'vending',    name: '🥤 Vending-Maschine', price: 200000,   incomePerHour: 15000,  desc: 'Verkauft rund um die Uhr Getränke am Dorfplatz.' },
+    { id: 'eisstand',   name: '🍦 Eisstand',         price: 500000,   incomePerHour: 40000,  desc: 'An warmen Tagen bildet sich hier eine Schlange.' },
+    { id: 'megges',     name: '🍔 Megges',           price: 1500000,  incomePerHour: 120000, desc: 'Die Fast-Food-Kette des Dorfes – läuft immer gut.' },
+    { id: 'supermarkt', name: '🏪 Supermarkt',       price: 4000000,  incomePerHour: 320000, desc: 'Eine kleine Filiale mit stetigem Umsatz.' },
   ];
 
   // Schwierigkeit des Angel-Minispiels (Quick-Time-Event) pro Seltenheits-Stufe.
@@ -1005,8 +1123,8 @@
   // Gebäude und Gewässer als Rechtecke hineinstempeln. So bleibt sie garantiert korrekt
   // und du kannst später leicht ein weiteres Gebäude/Gewässer hinzufügen.
   const TILE = 16;   // Pixelgröße einer Kachel
-  const COLS = 20;   // Karten-Breite in Kacheln
-  const ROWS = 14;   // Karten-Höhe in Kacheln
+  const COLS = 26;   // Karten-Breite in Kacheln (vorher 20 – etwas größere Welt)
+  const ROWS = 18;   // Karten-Höhe in Kacheln (vorher 14)
 
   const mapGrid = [];
   for (let y = 0; y < ROWS; y++) {
@@ -1030,13 +1148,16 @@
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) mapGrid[y0 + y][x0 + x] = code;
   }
 
-  placeBuilding(3, 2, 1, 'R', 'r', 'angel');      // Angel-Shop
-  placeBuilding(8, 2, 1, 'F', 'f', 'flidl');      // Flidl
-  placeBuilding(3, 5, 1, 'K', 'k', 'klamotten');  // Klamottenladen
-  placeBuilding(8, 5, 1, 'B', 'b', 'boote');      // Boots-Haus
+  // Obere Reihe: Angel-Shop, Flidl, Unternehmen
+  placeBuilding(3, 2, 1, 'R', 'r', 'angel');        // Angel-Shop
+  placeBuilding(9, 2, 1, 'F', 'f', 'flidl');        // Flidl
+  placeBuilding(15, 2, 1, 'U', 'u', 'unternehmen'); // Unternehmen (neu)
+  // Untere Reihe: Klamottenladen, Boots-Haus
+  placeBuilding(3, 7, 1, 'K', 'k', 'klamotten');    // Klamottenladen
+  placeBuilding(9, 7, 1, 'B', 'b', 'boote');        // Boots-Haus
 
-  placeWaterBlock(13, 2, 3, 3, 'W');   // Dorfteich – kostenlos, direkt vom Ufer aus
-  placeWaterBlock(1, 11, 18, 2, 'V');  // Flussufer – braucht mindestens ein Schlauchboot
+  placeWaterBlock(19, 6, 4, 4, 'W');   // Dorfteich – kostenlos, direkt vom Ufer aus (jetzt etwas größer)
+  placeWaterBlock(1, 14, 24, 2, 'V');  // Flussufer – braucht mindestens ein Schlauchboot
 
   // Eigenschaften pro Kachel-Code: begehbar? welche Art? bei Türen/Gewässern zusätzliche Infos.
   const TILE_DEFS = {
@@ -1052,14 +1173,17 @@
     'k': { walkable: false, kind: 'door', building: 'klamotten' },
     'B': { walkable: false, kind: 'wall', color: '#3a6a4a' },
     'b': { walkable: false, kind: 'door', building: 'boote' },
+    'U': { walkable: false, kind: 'wall', color: '#6a5a2a' },
+    'u': { walkable: false, kind: 'door', building: 'unternehmen' },
   };
 
   // Welches Gebäude zeigt welche Shop-Tabs, wenn man die Tür betritt.
   const BUILDINGS = {
-    angel:     { title: '🎣 Angel-Shop',      tabs: ['ruten', 'koeder', 'schwimmer'], icon: '🎣' },
-    flidl:     { title: '🛒 Flidl',           tabs: ['items', 'limitiert'],           icon: '🛒' },
-    klamotten: { title: '👕 Klamottenladen',  tabs: ['outfit'],                       icon: '👕' },
-    boote:     { title: '🚤 Boots-Haus',      tabs: ['boote'],                        icon: '🚤' },
+    angel:        { title: '🎣 Angel-Shop',      tabs: ['ruten', 'koeder', 'schwimmer'], icon: '🎣' },
+    flidl:        { title: '🛒 Flidl',           tabs: ['items', 'limitiert'],           icon: '🛒' },
+    klamotten:    { title: '👕 Klamottenladen',  tabs: ['outfit'],                       icon: '👕' },
+    boote:        { title: '🚤 Boots-Haus',      tabs: ['boote'],                        icon: '🚤' },
+    unternehmen:  { title: '🏢 Unternehmen',     tabs: ['unternehmen'],                  icon: '🏢' },
   };
 
   const TAB_META = {
@@ -1070,6 +1194,7 @@
     items:     { label: '✨ Items' },
     limitiert: { label: '🌟 Limitiert' },
     outfit:    { label: '👤 Outfit' },
+    unternehmen: { label: '🏢 Unternehmen' },
   };
 
   function getWater(id) { return WATERS.find(w => w.id === id); }
@@ -1094,16 +1219,17 @@
   let consumables = {};   // Bestand (gekauft, aber noch nicht eingelöst)
   let armed = {};         // eingelöst -> wirkt beim nächsten passenden Wurf
   let limitedBought = {}; // { itemId: Anzahl, die DIESER Spieler schon gekauft hat }
-  let appearanceIndex = { hut: 0, shirt: 0, hose: 0, brille: 0 };
+  let ownedBusinesses = {}; // { businessId: { lastCollect: <timestamp in ms> } }
+  let appearanceIndex = { hut: 0, shirt: 0, hose: 0, brille: 0, schuh: 0 };
   let ownedAppearance = {
-    hut: new Set([0]), shirt: new Set([0]), hose: new Set([0]), brille: new Set([0])
+    hut: new Set([0]), shirt: new Set([0]), hose: new Set([0]), brille: new Set([0]), schuh: new Set([0])
   };
   let busy = false;
   let invTab = 'fische';
   let discovered = new Set(); // Namen aller jemals gefangenen Fische -> fürs Lexikon
 
   // ---- Karte / Bewegung ----
-  let playerCol = 10, playerRow = 8; // Start: offener Platz in der Dorfmitte
+  let playerCol = 13, playerRow = 11; // Start: offener Platz in der Dorfmitte (größere Karte)
   let playerDir = 'down';
   let isMoving = false;
   let moveProgress = 0;
@@ -1122,6 +1248,15 @@
 
   // ---- Quick-Time-Event (Angel-Minispiel) ----
   let qte = null;
+
+  // ---- Promo-Codes ----
+  const PROMO_CODES = {
+    'PIXELDORF':   { type: 'money', amount: 500000,  label: '500.000€' },
+    'ANGELFIEBER': { type: 'item',  id: 'lucky_charm', label: 'Glücksbringer' },
+    'WILLKOMMEN':  { type: 'xp',    amount: 2000,     label: '2.000 Angel-XP' },
+    'GOLDFISCH':   { type: 'rod',   idx: 2,           label: 'Glasfaserrute' },
+  };
+  let redeemedCodes = new Set();
 
   // ============================ DOM ============================
 
@@ -1159,6 +1294,10 @@
   const qteProgressBar = document.getElementById('qteProgressBar');
   const qteTimerEl = document.getElementById('qteTimer');
   const qteHoldBtn = document.getElementById('qteHoldBtn');
+  const weaponShotOverlay = document.getElementById('weaponShotOverlay');
+  const weaponShotImg = document.getElementById('weaponShotImg');
+  const weaponShotFlash = document.getElementById('weaponShotFlash');
+  const weaponShotResult = document.getElementById('weaponShotResult');
 
   modalClose.addEventListener('click', () => {
     modalOverlay.classList.remove('show');
@@ -1192,12 +1331,15 @@
         armed,
         discovered: Array.from(discovered),
         limitedBought,
+        ownedBusinesses,
+        redeemedCodes: Array.from(redeemedCodes),
         appearanceIndex,
         ownedAppearance: {
           hut: Array.from(ownedAppearance.hut),
           shirt: Array.from(ownedAppearance.shirt),
           hose: Array.from(ownedAppearance.hose),
           brille: Array.from(ownedAppearance.brille),
+          schuh: Array.from(ownedAppearance.schuh),
         },
         playerCol, playerRow,
       };
@@ -1221,7 +1363,7 @@
       money = data.money || 0;
       xp = data.xp || 0;
       level = data.level || 1;
-      xpNext = data.xpNext || 100;
+      xpNext = xpForLevel(level); // neu berechnet statt aus altem Spielstand übernommen (alte Kurve war kaputt)
       streak = data.streak || 0;
       rodIndex = data.rodIndex || 0;
       baitIndex = data.baitIndex || 0;
@@ -1237,13 +1379,17 @@
       armed = data.armed || {};
       discovered = new Set(data.discovered || []);
       limitedBought = data.limitedBought || {};
-      appearanceIndex = data.appearanceIndex || { hut: 0, shirt: 0, hose: 0, brille: 0 };
+      ownedBusinesses = data.ownedBusinesses || {};
+      redeemedCodes = new Set(data.redeemedCodes || []);
+      appearanceIndex = data.appearanceIndex || { hut: 0, shirt: 0, hose: 0, brille: 0, schuh: 0 };
+      if (typeof appearanceIndex.schuh !== 'number') appearanceIndex.schuh = 0; // alte Spielstände ohne Schuhe
       const oa = data.ownedAppearance || {};
       ownedAppearance = {
         hut: new Set(oa.hut && oa.hut.length ? oa.hut : [0]),
         shirt: new Set(oa.shirt && oa.shirt.length ? oa.shirt : [0]),
         hose: new Set(oa.hose && oa.hose.length ? oa.hose : [0]),
         brille: new Set(oa.brille && oa.brille.length ? oa.brille : [0]),
+        schuh: new Set(oa.schuh && oa.schuh.length ? oa.schuh : [0]),
       };
       if (typeof data.playerCol === 'number') playerCol = data.playerCol;
       if (typeof data.playerRow === 'number') playerRow = data.playerRow;
@@ -1347,6 +1493,9 @@
       '608': 'admin_voidnetz',
       '609': 'admin_sturmrute',
       '610': 'admin_goldwaage',
+      '611': 'admin_sternenstaub',
+      '612': 'admin_tiefenruf',
+      '613': 'admin_unzerbrechlich',
     };
 
     if (code === '100') {
@@ -1496,12 +1645,19 @@
     hudBoat.textContent = BOATS[ownedBoatLevel].name;
     saveState();
   }
+  // Direkt aus dem Level berechnet statt aufschaukelnd multipliziert – dadurch bleibt
+  // die benötigte XP auch bei hohen Leveln (95+) in einem vernünftigen Rahmen.
+  // Level 1: 100 XP, Level 10: ~3.980 XP, Level 50: ~87.000 XP, Level 95: ~197.000 XP.
+  function xpForLevel(lvl) {
+    return Math.round(100 * Math.pow(lvl, 1.6));
+  }
+
   function addXp(amount) {
     xp += amount;
     while (xp >= xpNext) {
       xp -= xpNext;
       level++;
-      xpNext = Math.round(xpNext * 1.35);
+      xpNext = xpForLevel(level);
       addMessage('⭐ LEVEL UP!', `Du bist jetzt Level ${level}!`, null);
     }
     updateHud();
@@ -1536,10 +1692,15 @@
     return '30+';
   }
 
-  function weightedRarity(bucket, qualityBonus, mysticFlat) {
-    const base = WAIT_WEIGHTS[bucket];
+  // Die Seltenheit hängt jetzt NICHT mehr von der Wartezeit ab (WAIT_WEIGHTS oben wird
+  // dafür nicht mehr benutzt, bleibt aber als Basis für die Spannungs-Nachrichten in
+  // pickBucket() erhalten). Stattdessen gibt es eine einzige Basis-Gewichtung, die von
+  // Ruten-/Köder-/Boot-/Item-Boni verschoben wird – Wartezeit ist nur noch fürs Gefühl da.
+  const RARITY_BASE_WEIGHTS = { common: 20, uncommon: 20, rare: 20, epic: 20, legendary: 16.7, mystic: 0.3 };
+
+  function weightedRarity(qualityBonus, mysticFlat) {
     const w = {};
-    for (const r of RARITY) w[r] = base[r];
+    for (const r of RARITY) w[r] = RARITY_BASE_WEIGHTS[r];
     const shift = Math.min(w.common, qualityBonus);
     w.common -= shift;
     w.legendary += shift * 0.4;
@@ -1556,11 +1717,15 @@
     return 'common';
   }
 
+  // Skaliert die Grundwerte der Fische je Seltenheit (z.B. zum Balancen der Wirtschaft).
+  // Mystisch bleibt bewusst auf 1 (voller Wert) – alles andere ist auf die Hälfte reduziert.
+  const RARITY_VALUE_SCALE = { common: 0.5, uncommon: 0.5, rare: 0.5, epic: 0.5, legendary: 0.5, mystic: 1 };
+
   function pickFish(rarity) {
     const list = FISH_TABLE[rarity];
     const base = list[Math.floor(Math.random() * list.length)];
     const jitter = rarity === 'mystic' ? 1 : (0.85 + Math.random() * 0.3);
-    return { name: base.name, value: base.value * jitter };
+    return { name: base.name, value: base.value * jitter * RARITY_VALUE_SCALE[rarity] };
   }
 
   // ============================ GAME LOGIC: WARTEZEIT ============================
@@ -1593,6 +1758,15 @@
       || qteOverlay.classList.contains('show');
   }
 
+  // Zum FISCHEN an einem Gewässer reicht water.requiredBoat (beim Dorfteich: 0, also gar
+  // kein Boot nötig, wenn man vom Ufer aus angelt). Um aber tatsächlich AUF die Wasser-Kachel
+  // zu fahren, braucht man immer mindestens irgendein Boot – ganz ohne Boot schwimmt man nicht.
+  function canEnterWater(code) {
+    const def = TILE_DEFS[code];
+    const water = getWater(def.waterId);
+    return ownedBoatLevel >= Math.max(1, water.requiredBoat);
+  }
+
   function attemptStep(dir) {
     if (uiBlocked()) return;
     playerDir = dir;
@@ -1609,7 +1783,11 @@
       enterBuilding(def.building);
       return;
     }
-    if (!def.walkable) return; // Baum/Wand/Wasser blockiert
+    if (def.kind === 'water') {
+      if (!canEnterWater(code)) return; // kein passendes Boot -> Ufer blockiert wie eine Wand
+    } else if (!def.walkable) {
+      return; // Baum/Wand blockiert
+    }
 
     moveFromCol = playerCol; moveFromRow = playerRow;
     moveToCol = tc; moveToRow = tr;
@@ -1653,14 +1831,51 @@
     }
   }
 
-  // ---- Eingabe: D-Pad (Touch/Maus) ----
-  ['up', 'down', 'left', 'right'].forEach(dir => {
-    const btn = document.getElementById('dpad-' + dir);
-    btn.addEventListener('pointerdown', (e) => { e.preventDefault(); pressDir(dir); });
-    btn.addEventListener('pointerup', () => releaseDir(dir));
-    btn.addEventListener('pointerleave', () => releaseDir(dir));
-    btn.addEventListener('pointercancel', () => releaseDir(dir));
+  // ---- Eingabe: Analog-Joystick (Touch/Maus) ----
+  // Wandelt die Zieh-Richtung in eine der 4 Gitter-Richtungen um und nutzt dafür
+  // dieselben pressDir/releaseDir/heldDirs wie die Tastatur -> keine doppelte Logik.
+  const joystick = document.getElementById('joystick');
+  const joystickNub = document.getElementById('joystickNub');
+  const JOY_RADIUS = 32;   // maximaler Weg des Knüppels in Pixel
+  const JOY_DEADZONE = 12; // Mitte, in der keine Richtung aktiv ist
+  let joystickPointerId = null;
+
+  function joystickDirFromDelta(dx, dy) {
+    if (Math.hypot(dx, dy) < JOY_DEADZONE) return null;
+    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+  }
+
+  function updateJoystickFromEvent(e) {
+    const rect = joystick.getBoundingClientRect();
+    const dx = e.clientX - (rect.left + rect.width / 2);
+    const dy = e.clientY - (rect.top + rect.height / 2);
+    const dist = Math.min(JOY_RADIUS, Math.hypot(dx, dy));
+    const angle = Math.atan2(dy, dx);
+    joystickNub.style.transform = `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`;
+
+    const dir = joystickDirFromDelta(dx, dy);
+    if (dir && dir !== lastDir) { releaseDir(lastDir); pressDir(dir); }
+    else if (!dir) { releaseDir(lastDir); }
+  }
+
+  function resetJoystick() {
+    joystickNub.style.transform = 'translate(0px, 0px)';
+    releaseDir(lastDir);
+    joystickPointerId = null;
+  }
+
+  joystick.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    joystickPointerId = e.pointerId;
+    joystick.setPointerCapture(e.pointerId);
+    updateJoystickFromEvent(e);
   });
+  joystick.addEventListener('pointermove', (e) => {
+    if (joystickPointerId === null || e.pointerId !== joystickPointerId) return;
+    updateJoystickFromEvent(e);
+  });
+  joystick.addEventListener('pointerup', resetJoystick);
+  joystick.addEventListener('pointercancel', resetJoystick);
 
   // ---- Eingabe: Tastatur (Pfeiltasten/WASD) ----
   const KEY_DIR = {
@@ -1738,7 +1953,22 @@
     const hose = APPEARANCE.hose.options[appearanceIndex.hose].color;
     const hutColor = APPEARANCE.hut.options[appearanceIndex.hut].color;
     const glasses = APPEARANCE.brille.options[appearanceIndex.brille].color;
+    const shoeColor = APPEARANCE.schuh.options[appearanceIndex.schuh].color;
     const legOffset = (isMoving && Math.floor(waveT / 6) % 2 === 0) ? 1 : 0;
+
+    // Boot unterm Charakter, wenn man auf einer Wasser-Kachel steht (oder gerade
+    // hinein-/heraus-gleitet) – zeichnet zuerst, damit der Charakter "darin" steht.
+    const hereWater = TILE_DEFS[tileAt(playerCol, playerRow)].kind === 'water';
+    const fromWater = TILE_DEFS[tileAt(moveFromCol, moveFromRow)].kind === 'water';
+    const toWater = TILE_DEFS[tileAt(moveToCol, moveToRow)].kind === 'water';
+    if (isMoving ? (fromWater || toWater) : hereWater) {
+      ctx.fillStyle = '#6b4423';
+      ctx.fillRect(x - 8, y + 1, 16, 6);
+      ctx.fillStyle = '#8a5a2e';
+      ctx.fillRect(x - 8, y + 1, 16, 2);
+      ctx.fillStyle = '#4a2f18';
+      ctx.fillRect(x - 8, y + 5, 16, 2);
+    }
 
     // Schatten
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -1750,6 +1980,11 @@
     ctx.fillStyle = hose;
     ctx.fillRect(x - 3, y + 1 + legOffset, 2, 4 - legOffset);
     ctx.fillRect(x + 1, y + 1 + (1 - legOffset), 2, 4 - (1 - legOffset));
+
+    // Schuhe (an den Fußspitzen der Beine)
+    ctx.fillStyle = shoeColor;
+    ctx.fillRect(x - 3, y + 4, 2, 1 + legOffset);
+    ctx.fillRect(x + 1, y + 4, 2, 1 + (1 - legOffset));
 
     // Körper
     ctx.fillStyle = shirt;
@@ -1804,8 +2039,16 @@
     return null;
   }
 
+  // Man kann jetzt auch AUF dem Wasser stehen (mit Boot) -> das zählt zuerst,
+  // sonst wie bisher eine angrenzende Wasser-Kachel vom Ufer aus.
+  function getFishableWaterCode() {
+    const hereCode = tileAt(playerCol, playerRow);
+    if (TILE_DEFS[hereCode] && TILE_DEFS[hereCode].kind === 'water') return hereCode;
+    return getAdjacentWaterCode();
+  }
+
   function updateLocationLabel() {
-    const waterCode = getAdjacentWaterCode();
+    const waterCode = getFishableWaterCode();
     let label = 'Dorfplatz';
     if (waterCode) {
       label = TILE_DEFS[waterCode].label;
@@ -1826,7 +2069,7 @@
     if (busy) return; // während des Angelns übernimmt backToMain() die Buttons
 
     const list = [];
-    const waterCode = getAdjacentWaterCode();
+    const waterCode = getFishableWaterCode();
     if (waterCode) {
       const water = getWater(TILE_DEFS[waterCode].waterId);
       if (ownedBoatLevel >= water.requiredBoat) {
@@ -1872,13 +2115,16 @@
       bodyHtml = RODS.map((r, i) => {
         const owned = ownedRods.has(i);
         const afford = money >= r.price;
+        const thumb = r.img ? `<img src="${r.img}" alt="${r.name}" style="height:32px;image-rendering:pixelated;float:right;margin-left:8px;">` : '';
+        const weaponNote = r.isWeapon ? '<br><span style="color:var(--accent);">🔫 Bei mystischen Fängen: Schuss-Animation statt Minispiel!</span>' : '';
         return `
         <div class="shop-row">
+          ${thumb}
           <div class="shop-head">
             <span>${r.name}</span>
             <span>${owned ? '' : fmtMoney(r.price)}</span>
           </div>
-          <div class="shop-desc">Wartezeit-Bonus: ${r.waitBonus}s • Qualitäts-Bonus: +${r.qualityBonus}</div>
+          <div class="shop-desc">Wartezeit-Bonus: ${r.waitBonus}s • Qualitäts-Bonus: +${r.qualityBonus}${weaponNote}</div>
           ${owned ? '<span class="shop-owned">✔ Im Besitz</span>' : `<button data-kind="rod" data-idx="${i}" ${afford ? '' : 'disabled'}>Kaufen</button>`}
         </div>`;
       }).join('');
@@ -1978,6 +2224,30 @@
         }).join('');
         return `<div style="margin:14px 0 6px; color:#9fc7e0; font-size:9px;">${cat.icon} ${cat.label.toUpperCase()}</div>${rows}`;
       }).join('');
+    } else if (shopTab === 'unternehmen') {
+      bodyHtml = BUSINESSES.map(biz => {
+        const rec = ownedBusinesses[biz.id];
+        if (!rec) {
+          const afford = money >= biz.price;
+          return `
+          <div class="shop-row">
+            <div class="shop-head">
+              <span>${biz.name}</span>
+              <span>${fmtMoney(biz.price)}</span>
+            </div>
+            <div class="shop-desc">${biz.desc}<br>Bringt ${fmtMoney(biz.incomePerHour)} pro Stunde ein (läuft auch offline weiter, bis zu ${BUSINESS_MAX_HOURS}h sammeln sich an).</div>
+            <button data-kind="business" data-idx="${biz.id}" ${afford ? '' : 'disabled'}>Kaufen</button>
+          </div>`;
+        }
+        const hours = Math.min(BUSINESS_MAX_HOURS, (Date.now() - rec.lastCollect) / 3600000);
+        const earned = Math.round(hours * biz.incomePerHour);
+        return `
+        <div class="shop-row">
+          <div class="shop-head"><span>${biz.name}</span><span class="shop-owned">✔ Im Besitz</span></div>
+          <div class="shop-desc">${biz.desc}<br>Angesammelt: <b>${fmtMoney(earned)}</b>${hours >= BUSINESS_MAX_HOURS ? ' (Maximum erreicht – abholen nicht vergessen!)' : ''}</div>
+          <button data-kind="collect-business" data-idx="${biz.id}" ${earned > 0 ? '' : 'disabled'}>💰 Abholen</button>
+        </div>`;
+      }).join('');
     }
 
     modalBody.innerHTML = `<div id="shopMoney">Verfügbares Geld: ${fmtMoney(money)}</div>${tabsHtml}${bodyHtml}`;
@@ -2037,6 +2307,24 @@
           money -= opt.price;
           ownedAppearance[cat].add(i);
           addMessage('🛍️ Shop', `Du hast <b>${opt.name}</b> gekauft!`, 'Ausrüsten kannst du es über "Ausrüstung".');
+        } else if (kind === 'business') {
+          const id = btn.dataset.idx;
+          const biz = BUSINESSES.find(b => b.id === id);
+          if (ownedBusinesses[id] || money < biz.price) return;
+          money -= biz.price;
+          ownedBusinesses[id] = { lastCollect: Date.now() };
+          addMessage('🏢 Unternehmen gekauft', `<b>${biz.name}</b> gehört jetzt dir! Es bringt ${fmtMoney(biz.incomePerHour)}/Stunde ein.`, 'Komm später wieder vorbei zum Abholen.');
+        } else if (kind === 'collect-business') {
+          const id = btn.dataset.idx;
+          const biz = BUSINESSES.find(b => b.id === id);
+          const rec = ownedBusinesses[id];
+          if (!rec) return;
+          const hours = Math.min(BUSINESS_MAX_HOURS, (Date.now() - rec.lastCollect) / 3600000);
+          const earned = Math.round(hours * biz.incomePerHour);
+          if (earned <= 0) return;
+          money += earned;
+          rec.lastCollect = Date.now();
+          addMessage('💰 Einnahmen abgeholt', `<b>${biz.name}</b> hat dir ${fmtMoney(earned)} eingebracht!`, null);
         }
         updateHud();
         showShop(shopTab);
@@ -2130,6 +2418,7 @@
       { label: '🎩 Hut wechseln', onClick: () => showAppearanceMenu('hut') },
       { label: '👕 Shirt wechseln', onClick: () => showAppearanceMenu('shirt') },
       { label: '👖 Hose wechseln', onClick: () => showAppearanceMenu('hose') },
+      { label: '👟 Schuhe wechseln', onClick: () => showAppearanceMenu('schuh') },
       { label: '🕶️ Brille wechseln', onClick: () => showAppearanceMenu('brille') },
       { label: '⬅ Zurück', onClick: showEquipMenu },
     ]);
@@ -2158,15 +2447,21 @@
           return;
         }
 
-        const bucket = pickBucket(waitSeconds);
-        const rarity = weightedRarity(bucket, bonuses.quality, bonuses.mysticFlat);
+        const bucket = pickBucket(waitSeconds); // nur noch für die Spannungs-Nachricht unten
+        const rarity = weightedRarity(bonuses.quality, bonuses.mysticFlat);
 
         let tensionMsg = null;
         if (bucket === '10-19') tensionMsg = ['🐟', 'Etwas zieht an der Leine...'];
         else if (bucket === '20-29') tensionMsg = ['🦈', 'ETWAS GRÖSSERES! Die Leine spannt sich!'];
         else if (bucket === '30+') tensionMsg = ['🌊', 'Die Rute biegt sich bis zum Anschlag!'];
 
-        const openQte = () => startQte(rarity, waterCode, bonuses, waitSeconds);
+        const openQte = () => {
+          if (rarity === 'mystic' && RODS[rodIndex].isWeapon) {
+            startWeaponShot(rarity, waterCode, bonuses, waitSeconds);
+          } else {
+            startQte(rarity, waterCode, bonuses, waitSeconds);
+          }
+        };
         if (tensionMsg) {
           addMessage(tensionMsg[0], tensionMsg[1], null);
           setTimeout(openQte, 900);
@@ -2211,6 +2506,23 @@
     updateHud();
     busy = false;
     backToMain();
+  }
+
+  // Statt des Zappel-Minispiels: mit einer Waffen-Rute UND einem mystischen Fang wird
+  // einfach kurz "geschossen" – ein Mündungsblitz, ein Treffer-Text, fertig. Kein
+  // Geschick nötig, garantierter Fang (genau wie es sich für eine Schrott-Flinte gehört).
+  function startWeaponShot(rarity, waterCode, bonuses, waitSeconds) {
+    weaponShotImg.src = RODS[rodIndex].img || '';
+    weaponShotFlash.classList.remove('show');
+    weaponShotResult.classList.remove('show');
+    weaponShotOverlay.classList.add('show');
+
+    setTimeout(() => weaponShotFlash.classList.add('show'), 300);
+    setTimeout(() => weaponShotResult.classList.add('show'), 600);
+    setTimeout(() => {
+      weaponShotOverlay.classList.remove('show');
+      resolveCatch({ rarity, bonuses, waitSeconds });
+    }, 1700);
   }
 
   // ============================ QUICK-TIME-EVENT (Angel-Minispiel) ============================
@@ -2318,6 +2630,7 @@
         <button data-invtab="fische" class="${invTab==='fische'?'active':''}">🐟 Fische</button>
         <button data-invtab="items" class="${invTab==='items'?'active':''}">🎒 Items</button>
         <button data-invtab="lexikon" class="${invTab==='lexikon'?'active':''}">📖 Lexikon</button>
+        <button data-invtab="codes" class="${invTab==='codes'?'active':''}">🎁 Codes</button>
       </div>`;
 
     let bodyHtml = '';
@@ -2373,6 +2686,24 @@
         </div>
         ${sections}
       `;
+    } else if (invTab === 'codes') {
+      // ---- Codes-Tab: Promo-Code eingeben + Liste der bereits eingelösten Codes ----
+      const redeemedRows = redeemedCodes.size
+        ? Array.from(redeemedCodes).map(code => `
+          <div class="inv-row"><span>${code}</span><span class="shop-owned">✔ eingelöst</span></div>
+        `).join('')
+        : '<div class="inv-empty">Noch keinen Code eingelöst.</div>';
+
+      bodyHtml = `
+        <div style="margin-bottom:10px;">
+          <input id="promoInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
+                 placeholder="Code eingeben..."
+                 style="width:100%; box-sizing:border-box; padding:8px; font-family:inherit; font-size:11px; background:#04101c; color:#dff0ff; border:2px solid var(--border);">
+          <button id="promoRedeemBtn" style="width:100%; margin-top:6px;">🎁 Einlösen</button>
+        </div>
+        <div style="margin:14px 0 6px; color:#9fc7e0; font-size:9px;">BEREITS EINGELÖST</div>
+        ${redeemedRows}
+      `;
     } else {
       // ---- Items-Tab: Verbrauchsgegenstände (mit Bestand + Einlösen) und dauerhafte Boni-Items ----
       const consumableRows = CONSUMABLES.map(item => {
@@ -2420,11 +2751,20 @@
     modalBody.querySelectorAll('button[data-redeem]').forEach(btn => {
       btn.addEventListener('click', () => redeemConsumable(btn.dataset.redeem));
     });
+    const promoBtn = modalBody.querySelector('#promoRedeemBtn');
+    const promoInput = modalBody.querySelector('#promoInput');
+    if (promoBtn && promoInput) {
+      promoBtn.addEventListener('click', () => redeemPromoCode(promoInput.value));
+      promoInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') redeemPromoCode(promoInput.value);
+        e.stopPropagation();
+      });
+    }
 
     modalOverlay.classList.add('show');
   }
 
-  // ============================ INVENTAR (unverändert aus dem Original übernommen) ============================
+  // ============================ INVENTAR ============================
 
   function redeemConsumable(id) {
     const item = CONSUMABLES.find(x => x.id === id);
@@ -2435,6 +2775,30 @@
     addMessage('🌟 Eingelöst', `<b>${item.name}</b> wurde eingelöst und wirkt beim nächsten passenden Wurf.`, `Verbleibender Bestand: ${consumables[id]}`);
     updateHud();
     showInventory('items');
+  }
+
+  function redeemPromoCode(raw) {
+    const code = (raw || '').trim().toUpperCase();
+    if (!code) return;
+    if (redeemedCodes.has(code)) {
+      addMessage('🎁 Code', 'Dieser Code wurde bei dir bereits eingelöst.', null);
+      showInventory('codes');
+      return;
+    }
+    const reward = PROMO_CODES[code];
+    if (!reward) {
+      addMessage('🎁 Code', `"${code}" ist kein gültiger Code.`, null);
+      showInventory('codes');
+      return;
+    }
+    redeemedCodes.add(code);
+    if (reward.type === 'money') money += reward.amount;
+    else if (reward.type === 'xp') addXp(reward.amount);
+    else if (reward.type === 'item') ownedItems.add(reward.id);
+    else if (reward.type === 'rod') ownedRods.add(reward.idx);
+    addMessage('🎁 Code eingelöst!', `Du hast <b>${reward.label}</b> erhalten!`, null);
+    updateHud();
+    showInventory('codes');
   }
 
   function sellOne(index) {
@@ -2493,4 +2857,3 @@
 </script>
 </body>
 </html>
-(bylucky)
